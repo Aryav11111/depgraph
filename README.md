@@ -1,0 +1,121 @@
+# depgraph
+
+[![CI](https://github.com/Aryav11111/depgraph/actions/workflows/ci.yml/badge.svg)](https://github.com/Aryav11111/depgraph/actions/workflows/ci.yml)
+![Python 3.13](https://img.shields.io/badge/python-3.13-blue)
+
+**depgraph turns a lockfile into a persisted, queryable map of every package your project actually ships.**
+
+Upload a `package-lock.json` and depgraph resolves the full *transitive* dependency
+graph (not just the 20 packages in your `package.json`, but the hundreds they pull in),
+stores it in Postgres, and answers questions like *"through which chains of
+dependencies does `minimist` end up in my build?"*
+
+## Why
+
+Most of a modern application's code is code you never chose directly. When a
+package deep in the tree is compromised or vulnerable, the first questions are always
+the same: *are we affected, which projects, and how did it get in?* Answering
+them requires the resolved graph, persisted and indexed, which is the foundation
+this project builds. Vulnerability matching, reachability analysis and a GitHub App
+are planned later layers on top of it.
+
+## Status
+
+| Stage | State |
+|---|---|
+| 1. Scaffold: FastAPI, Postgres, Redis, Alembic, CI | ✅ done |
+| 2. Schema for packages, versions, edges, scans | ⏳ next |
+| 3. `package-lock.json` parser (v2 + v3) | planned |
+| 4. npm registry client (rate limits, backoff, Redis cache) | planned |
+| 5. Graph builder (cycles, duplicate subtrees) | planned |
+| 6. Scan + graph + dependency-path API | planned |
+
+## Architecture
+
+```mermaid
+flowchart LR
+    client([Client / CI job]) -->|POST lockfile| api
+
+    subgraph depgraph [depgraph service · FastAPI, async]
+        api[API layer] --> parser[Lockfile parser<br/><i>pure, no I/O</i>]
+        api --> builder[Graph builder]
+        builder --> registry[npm registry client<br/><i>rate limit + backoff</i>]
+    end
+
+    builder -->|nodes + edges| pg[(Postgres<br/>packages · versions<br/>edges · scans)]
+    api -->|recursive CTE queries| pg
+    registry <-->|metadata cache, TTL| redis[(Redis)]
+    registry -->|HTTPS| npm[(registry.npmjs.org)]
+```
+
+Design principles:
+
+- **The parser is a pure function.** Lockfile in, typed graph out, with no database
+  or network involved. That makes the trickiest logic the easiest to test exhaustively.
+- **Async end to end.** FastAPI, SQLAlchemy 2.0 async with asyncpg, `redis.asyncio`, and
+  `httpx`. Resolving a lockfile is I/O-bound fan-out (hundreds of registry lookups), which
+  is exactly what async is good at.
+- **Configuration only via environment variables**, validated at startup by
+  pydantic-settings. No secrets in the repo.
+- **Structured JSON logs** with a per-request `request_id` (honours incoming
+  `X-Request-ID`), ready for Cloud Logging.
+
+Design decisions and their trade-offs are recorded in [NOTES.md](NOTES.md).
+
+## Running locally
+
+Prerequisites: [Docker](https://docs.docker.com/get-docker/),
+[uv](https://docs.astral.sh/uv/), and `make`.
+
+```bash
+cp .env.example .env
+make up          # postgres + redis, runs migrations, starts the API on :8080
+curl localhost:8080/health/ready
+```
+
+Develop on the host with hot reload (uses the compose Postgres/Redis):
+
+```bash
+make install     # uv sync: creates .venv from uv.lock
+make migrate
+make run         # http://localhost:8000/docs
+```
+
+| Command | What it does |
+|---|---|
+| `make test` | pytest against the real Postgres/Redis (needs `make up`) |
+| `make lint` / `make fmt` | ruff lint + format check / auto-fix |
+| `make revision m="..."` | autogenerate an Alembic migration |
+| `make logs` / `make down` | tail API logs / stop the stack |
+
+All configuration is via env vars. See [.env.example](.env.example).
+
+## API
+
+Interactive docs are served at `/docs` (OpenAPI).
+
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/health` | Liveness: the process is up. Never touches dependencies. |
+| `GET` | `/health/ready` | Readiness: Postgres and Redis respond. Returns `503` with per-check detail otherwise. |
+| `POST` | `/scans` | *(planned, stage 6)* Upload a lockfile and create a scan. |
+| `GET` | `/scans/{id}/graph` | *(planned, stage 6)* The scan's resolved dependency graph. |
+| `GET` | `/scans/{id}/paths?package=` | *(planned, stage 6)* Every dependency path from the root to a package. |
+
+## Project layout
+
+```
+src/depgraph/
+  main.py          app factory + lifespan (connection pools)
+  core/            settings, structured logging
+  api/             routers, dependencies, request-context middleware
+  db/              SQLAlchemy base, models, async session
+migrations/        Alembic (async), URL taken from settings
+tests/             pytest, in-process ASGI client against real services
+```
+
+## Tech
+
+Python 3.13 · FastAPI · SQLAlchemy 2.0 (async) + asyncpg · Alembic · PostgreSQL 17 ·
+Redis 7.4 · httpx · structlog · pytest · ruff · uv · Docker Compose · GitHub Actions.
+Deployment target: Google Cloud Run.
