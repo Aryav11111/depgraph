@@ -24,8 +24,8 @@ are planned later layers on top of it.
 | Stage | State |
 |---|---|
 | 1. Scaffold: FastAPI, Postgres, Redis, Alembic, CI | ✅ done |
-| 2. Schema for packages, versions, edges, scans | ⏳ next |
-| 3. `package-lock.json` parser (v2 + v3) | planned |
+| 2. Schema for packages, versions, edges, scans | ✅ done |
+| 3. `package-lock.json` parser (v2 + v3) | ⏳ next |
 | 4. npm registry client (rate limits, backoff, Redis cache) | planned |
 | 5. Graph builder (cycles, duplicate subtrees) | planned |
 | 6. Scan + graph + dependency-path API | planned |
@@ -61,6 +61,47 @@ Design principles:
   `X-Request-ID`), ready for Cloud Logging.
 
 Design decisions and their trade-offs are recorded in [NOTES.md](NOTES.md).
+
+## Data model
+
+```mermaid
+erDiagram
+    packages ||--o{ package_versions : "has"
+    package_versions ||--o{ scan_nodes : "appears as"
+    scans ||--o{ scan_nodes : "contains"
+    scans ||--o{ scan_edges : "contains"
+    scan_nodes ||--o{ scan_edges : "parent of"
+    scan_nodes ||--o{ scan_edges : "child of"
+
+    packages { bigint id PK
+               text ecosystem
+               text name }
+    package_versions { bigint id PK
+                       bigint package_id FK
+                       text version
+                       text integrity }
+    scans { uuid id PK
+            text status
+            text lockfile_sha256 }
+    scan_nodes { bigint id PK
+                 uuid scan_id FK
+                 text source "root|registry|workspace|git|file|remote"
+                 bigint version_id FK "registry nodes only"
+                 text_array install_paths }
+    scan_edges { uuid scan_id PK
+                 bigint parent_node_id PK
+                 bigint child_node_id PK
+                 text dep_type PK
+                 text declared_range }
+```
+
+- **Global catalogue** (`packages`, `package_versions`): published npm versions are
+  immutable, so each `name@version` is stored once and shared by every scan.
+- **Per-scan graph** (`scan_nodes`, `scan_edges`): what a range *resolved to* is
+  specific to one lockfile. Edges form an adjacency list, traversed with recursive
+  CTEs. Cycles are allowed, and duplicate subtrees collapse into one node per
+  `name@version`.
+- Composite foreign keys mean an edge can never join nodes from two different scans.
 
 ## Running locally
 

@@ -13,8 +13,10 @@ from contextlib import asynccontextmanager
 
 import httpx
 import pytest
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 
 from depgraph.core.config import Settings
+from depgraph.db.session import create_engine
 from depgraph.main import create_app
 
 
@@ -36,3 +38,38 @@ def settings() -> Settings:
 async def client(settings: Settings) -> AsyncIterator[httpx.AsyncClient]:
     async with make_client(settings) as c:
         yield c
+
+
+@pytest.fixture(scope="session")
+def migrated(request) -> None:
+    """Bring the test database to the latest schema once per session."""
+    from alembic import command
+    from alembic.config import Config
+
+    command.upgrade(Config(str(request.config.rootpath / "alembic.ini")), "head")
+
+
+@pytest.fixture(scope="session")
+async def engine(migrated) -> AsyncIterator[AsyncEngine]:
+    eng = create_engine(Settings(app_env="test"))
+    yield eng
+    await eng.dispose()
+
+
+@pytest.fixture
+async def db(engine: AsyncEngine) -> AsyncIterator[AsyncSession]:
+    """A session whose work is always rolled back: tests never see each other's rows.
+
+    The outer transaction is never committed; `create_savepoint` turns the code
+    under test's commit()/rollback() into SAVEPOINT operations inside it.
+    """
+    async with engine.connect() as conn:
+        trans = await conn.begin()
+        session = AsyncSession(
+            bind=conn, join_transaction_mode="create_savepoint", expire_on_commit=False
+        )
+        try:
+            yield session
+        finally:
+            await session.close()
+            await trans.rollback()
