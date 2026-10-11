@@ -405,3 +405,81 @@ Enriching a scan from the registry (deprecations, an integrity cross-check) woul
 be one request per package, ~385 for the fixture, on every scan. The registry
 client's consumer is stage 2's fix suggestions. The cross-scan integrity check
 above gives a cheap tampering signal without the network.
+
+---
+
+## Stage 1, step 6: Scan API
+
+### Endpoints
+`POST /scans`, `GET /scans/{id}`, `GET /scans/{id}/graph`,
+`GET /scans/{id}/paths?package=&version=&max_paths=&max_depth=`.
+
+### Upload: raw lockfile as the body
+`curl --data-binary @package-lock.json` is the whole client. Multipart adds
+nothing for a single JSON file. The body is streamed with a hard byte limit
+(`MAX_LOCKFILE_BYTES`, 25 MB), checked against `Content-Length` *and* while
+reading, because chunked uploads carry no length. The OpenAPI schema documents
+the raw body explicitly.
+
+### Validate before creating anything
+The lockfile is parsed *before* a scan row exists, so an unparseable upload is
+a `422` and leaves nothing behind. Parsing is CPU-bound, so it runs in
+`asyncio.to_thread` to keep the event loop responsive.
+
+### Synchronous build (for now)
+The build takes ~150–400 ms for ~400 packages (step 5 measurements), so
+`POST /scans` builds inline and returns `201` with the completed scan.
+Trade-off: very large monorepo lockfiles would hold a request for seconds. The
+status machine (`pending → processing → completed | failed`) already supports
+moving the build to a worker and returning `202`, without changing the schema
+or the read endpoints. Do that when (a) p95 build time or (b) Cloud Run request
+timeouts make it necessary.
+
+### Status codes
+- `404` for an unknown scan, `422` for a malformed UUID or lockfile, `413` for
+  too large.
+- `409` when reading the graph or paths of a scan that isn't `completed`. The
+  resource exists, but its graph isn't available.
+- `500` if the build fails. The scan is still recorded as `failed` with a safe
+  error message.
+
+### Path queries: CTE to prune, A* to enumerate
+1. **SQL (recursive CTE):** the set of ancestors of the target nodes. `UNION`
+   (not `UNION ALL`) discards revisits, so cycles terminate. It walks the
+   `(scan_id, child_node_id)` index. Only edges into that set are loaded.
+2. **Python (`graph/paths.py`, pure):** enumerate simple root→target paths.
+
+Why not do it all in one recursive CTE? Shortest-first output needs
+`ORDER BY length`, which forces Postgres to materialize *every* path before
+returning any, and path counts are exponential. The cap (`LIMIT`) and the order
+can't both be honoured cheaply in SQL.
+
+**First attempt, plain BFS, failed its own test.** On 30 stacked diamonds (2³⁰
+equal-length paths), BFS has to hold every partial path of length L before
+completing one of length L+1, so it hit the work budget with **zero** results.
+The fix is a **best-first (A\*) search**:
+- Partial paths, grown backwards from the targets, are ranked by
+  `f = edges so far + exact distance from root to the head node` (one forward
+  BFS precomputes these).
+- That bound never overestimates, so completed paths come out in
+  non-decreasing length: still shortest first, provably.
+- Ties go to the deepest partial path, so the search runs depth-first along
+  optimal routes. Each extra path costs about 4.6 expansions (measured), so
+  work is proportional to the paths *returned*.
+- Heads with no route to the root are pruned before costing anything.
+
+There are three caps: `max_paths` (default 100, hard max 1000), `max_depth` (64)
+and an expansion budget (200k). Requested caps are clamped to the server limits.
+`truncated: true` means more paths may exist.
+
+### Path representation
+Each step is `{id, name, version, dep_type}`, where `dep_type` labels the edge
+*into* that step (`null` for the root). A path through a `dev` or `peer` edge is
+visible as such, which matters for "does this actually ship?".
+
+### Known limitations
+- Non-registry nodes (root, workspaces, git) have no stored version, so the root
+  shows `version: null`. That needs a `scan_nodes.version` column for local
+  nodes.
+- Paths respect the collapse inaccuracy from step 2: a merged
+  `name@version` node can join edges from different install paths.

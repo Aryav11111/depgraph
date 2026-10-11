@@ -30,6 +30,14 @@ class Settings(BaseSettings):
 
     redis_url: SecretStr = Field(default=SecretStr("redis://localhost:6379/0"))
 
+    # API limits.
+    max_lockfile_bytes: int = 25 * 1024 * 1024
+    paths_default_max: int = 100
+    paths_hard_max: int = 1000
+    paths_max_depth: int = 64
+    # Bounds work per request: dependency-path counts grow exponentially.
+    paths_max_expansions: int = 200_000
+
     # npm registry client. Limits are per process (see NOTES.md, step 4).
     npm_registry_url: str = "https://registry.npmjs.org"
     npm_timeout_s: float = 10.0

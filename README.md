@@ -28,7 +28,7 @@ are planned later layers on top of it.
 | 3. `package-lock.json` parser (v2 + v3) | ✅ done |
 | 4. npm registry client (rate limits, backoff, Redis cache) | ✅ done |
 | 5. Graph builder (cycles, duplicate subtrees) | ✅ done |
-| 6. Scan + graph + dependency-path API | ⏳ next |
+| 6. Scan + graph + dependency-path API | ✅ done |
 
 ## Architecture
 
@@ -134,11 +134,41 @@ Interactive docs are served at `/docs` (OpenAPI).
 
 | Method | Path | Description |
 |---|---|---|
+| `POST` | `/scans` | Upload a `package-lock.json` (v2/v3) as the request body. It is parsed, resolved and stored; returns the scan (`201`). `422` for an invalid lockfile, `413` if too large. |
+| `GET` | `/scans/{id}` | Scan status, counts and warnings (e.g. unresolved dependencies, integrity mismatches). |
+| `GET` | `/scans/{id}/graph` | The full resolved graph: every package node and dependency edge. |
+| `GET` | `/scans/{id}/paths?package=&version=&max_paths=&max_depth=` | Every dependency path from the project root to a package, shortest first, capped (`truncated` says if a cap was hit). |
 | `GET` | `/health` | Liveness: the process is up. Never touches dependencies. |
 | `GET` | `/health/ready` | Readiness: Postgres and Redis respond. Returns `503` with per-check detail otherwise. |
-| `POST` | `/scans` | *(planned, stage 6)* Upload a lockfile and create a scan. |
-| `GET` | `/scans/{id}/graph` | *(planned, stage 6)* The scan's resolved dependency graph. |
-| `GET` | `/scans/{id}/paths?package=` | *(planned, stage 6)* Every dependency path from the root to a package. |
+
+### Example
+
+```bash
+curl -s -X POST localhost:8080/scans -H 'Content-Type: application/json'      --data-binary @package-lock.json
+# {"id":"1319d65f-...","status":"completed","node_count":385,"edge_count":570,"warnings":[],...}
+
+curl -s 'localhost:8080/scans/1319d65f-.../paths?package=debug&version=2.6.9&max_paths=3'
+```
+
+Paths from that response, rendered (real output for the fixture in
+`tests/fixtures/npm/realworld`):
+
+```
+acme-dashboard -> express@4.22.3 -> debug@2.6.9
+acme-dashboard -> express@4.22.3 -> body-parser@1.20.8 -> debug@2.6.9
+acme-dashboard -> express@4.22.3 -> finalhandler@1.3.2 -> debug@2.6.9
+(truncated: more paths exist)
+```
+
+### How path queries stay fast on huge graphs
+
+The number of distinct paths can grow exponentially (every "diamond" in the
+graph doubles it). A recursive CTE first narrows the graph to the target's
+ancestors; then a best-first (A*) search over that subgraph, ranked by
+`path length so far + exact distance to the root`, yields paths **shortest
+first** and does work proportional to the paths *returned*, not the paths that
+exist. On a synthetic graph with 2³⁰ paths it returns the first 50 in
+milliseconds.
 
 ## Project layout
 

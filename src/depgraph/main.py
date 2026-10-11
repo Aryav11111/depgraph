@@ -8,7 +8,7 @@ from fastapi import FastAPI
 from redis.asyncio import Redis
 
 from depgraph import __version__
-from depgraph.api import health
+from depgraph.api import health, scans
 from depgraph.api.middleware import RequestContextMiddleware
 from depgraph.core.config import Settings, get_settings
 from depgraph.core.logging import configure_logging
@@ -39,6 +39,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             log.info("shutdown")
 
     app = FastAPI(title="depgraph", version=__version__, lifespan=lifespan)
+    app.state.settings = settings
     app.add_middleware(RequestContextMiddleware)
     app.include_router(health.router)
+    app.include_router(scans.router)
     return app
