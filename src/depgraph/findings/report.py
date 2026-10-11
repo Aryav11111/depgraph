@@ -79,9 +79,7 @@ async def list_findings(
     if kinds:
         where.append("a.kind = ANY(:kinds)")
         params["kinds"] = sorted(kinds)
-    rows = await session.execute(
-        text(_SELECT + " WHERE " + " AND ".join(where) + _ORDER), params
-    )
+    rows = await session.execute(text(_SELECT + " WHERE " + " AND ".join(where) + _ORDER), params)
     return [FindingRow(*r) for r in rows]
 
 
@@ -133,11 +131,13 @@ async def shortest_paths(
     # ever walks up from its own target, so sharing the map is safe.
     parents = await ancestor_parents(session, scan_id, targets)
     raw = {
-        t: find_paths(parents, root, [t], max_paths=1, max_depth=max_depth,
-                      max_expansions=max_expansions).paths  # fmt: skip
+        t: find_paths(
+            parents, root, [t], max_paths=1, max_depth=max_depth, max_expansions=max_expansions
+        ).paths
         for t in targets
     }
-    labels = await nodes_by_id(session, sorted({i for ps in raw.values() for p in ps for i, _ in p}))
+    seen = sorted({i for ps in raw.values() for p in ps for i, _ in p})
+    labels = await nodes_by_id(session, seen)
     return {
         t: [LabelledStep(i, labels[i].name, labels[i].version, d) for i, d in ps[0]] if ps else None
         for t, ps in raw.items()
