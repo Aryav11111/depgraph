@@ -60,5 +60,25 @@ services:
       timeout: 3s
       retries: 20
 
+  # Tooling container for `make test|lint|fmt|migrate`. Behind a profile so
+  # `docker compose up` never starts it; `docker compose run dev ...` does.
+  dev:
+    profiles: ["dev"]
+    build:
+      context: .
+      target: dev
+    volumes:
+      - .:/app
+    environment:
+      APP_ENV: test
+      LOG_JSON: "false"
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-depgraph}:${POSTGRES_PASSWORD:-depgraph}@postgres:5432/${POSTGRES_DB:-depgraph}
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
 volumes:
   pgdata:

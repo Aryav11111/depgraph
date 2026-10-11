@@ -23,6 +23,24 @@ COPY src ./src
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-dev --no-editable
 
+# ---- dev: test/lint/migration tooling; the repo is bind-mounted at /app ----
+# Used by `make test|lint|fmt|migrate|revision`. Not shipped; the runtime stage
+# below stays the default build target.
+FROM python:3.13-slim AS dev
+COPY --from=ghcr.io/astral-sh/uv:0.11.20 /uv /bin/uv
+# The venv lives outside /app so the bind mount (and any host .venv) can't shadow it.
+ENV UV_PROJECT_ENVIRONMENT=/opt/venv \
+    UV_LINK_MODE=copy \
+    UV_PYTHON_DOWNLOADS=0 \
+    PATH="/opt/venv/bin:$PATH" \
+    PYTHONPATH=/app/src \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
+WORKDIR /app
+COPY pyproject.toml uv.lock ./
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --frozen --no-install-project
+
 # ---- runtime: no compiler, no uv, non-root ----
 FROM python:3.13-slim AS runtime
 

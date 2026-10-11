@@ -1,15 +1,25 @@
 # Recipes are single commands with no shell-specific syntax so they behave the
 # same under cmd.exe (Windows make) and sh (macOS/Linux/CI).
+#
+# Python tooling runs in the `dev` container by default: the only host requirement
+# is Docker, and it sidesteps host policies (e.g. Windows Smart App Control) that
+# block virtualenv launchers. `make test LOCAL=1` uses the host .venv instead.
+ifdef LOCAL
+RUN := uv run
+else
+RUN := docker compose run --rm --build dev
+endif
+
 .DEFAULT_GOAL := help
-.PHONY: help install up down logs migrate revision run test lint fmt check
+.PHONY: help install up down logs migrate revision test lint fmt check
 
 help:  ## List targets
-	@uv run python -c "import re;[print(f'{m[0]:<10} {m[1]}') for m in re.findall(r'^([a-z]+):.*?## (.*)$$', open('Makefile').read(), re.M)]"
+	@$(RUN) python scripts/make_help.py
 
-install:  ## Install locked dependencies (incl. dev) into .venv
+install:  ## Host-only: create .venv from uv.lock (for editor tooling / LOCAL=1)
 	uv sync --frozen
 
-up:  ## Build and start postgres, redis, migrations and the API
+up:  ## Build and start postgres, redis, migrations and the API on :8080
 	docker compose up -d --build --wait
 
 down:  ## Stop the stack (data volume is kept)
@@ -18,24 +28,21 @@ down:  ## Stop the stack (data volume is kept)
 logs:  ## Tail API logs
 	docker compose logs -f api
 
-migrate:  ## Apply migrations from the host
-	uv run alembic upgrade head
+migrate:  ## Apply migrations
+	$(RUN) alembic upgrade head
 
 revision:  ## Autogenerate a migration: make revision m="message"
-	uv run alembic revision --autogenerate -m "$(m)"
-
-run:  ## Run the API on the host with autoreload
-	uv run uvicorn --factory depgraph.main:create_app --reload --port 8000
+	$(RUN) alembic revision --autogenerate -m "$(m)"
 
 test:  ## Run the test suite (needs `make up` for postgres/redis)
-	uv run pytest
+	$(RUN) pytest
 
 lint:  ## Lint and check formatting
-	uv run ruff check .
-	uv run ruff format --check .
+	$(RUN) ruff check .
+	$(RUN) ruff format --check .
 
 fmt:  ## Auto-fix lint issues and format
-	uv run ruff check --fix .
-	uv run ruff format .
+	$(RUN) ruff check --fix .
+	$(RUN) ruff format .
 
 check: lint test  ## Everything CI runs

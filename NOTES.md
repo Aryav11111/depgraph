@@ -167,8 +167,11 @@ index allows exactly one root per scan.
   `uq_packages_ecosystem_name` says what it covers.
 - New migrations are auto-formatted with ruff through an Alembic post-write hook.
 
-### Local environment: Windows Smart App Control
-Smart App Control (now enforcing on the dev machine) blocks the unsigned
-`.venv\Scripts\python.exe` launcher. The base CPython interpreter and Docker are
-unaffected. Options are under discussion; nothing in the repo depends on the
-workaround.
+### Dev tooling runs in a container
+Smart App Control (enforcing on the dev machine) blocks the unsigned
+`.venv\Scripts\python.exe` launcher that every Windows virtualenv uses. Turning it
+off is irreversible on Windows 11, so instead `make test|lint|fmt|migrate|revision`
+run in a `dev` image (Dockerfile `dev` stage, compose `dev` profile) with the repo
+bind-mounted. Side benefits: Docker is the only host prerequisite, and tests see the
+same Linux/Python as CI and production. The venv lives at `/opt/venv`, outside the
+mount, so a host `.venv` can't shadow it. `LOCAL=1` opts back into the host venv.

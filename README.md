@@ -105,29 +105,26 @@ erDiagram
 
 ## Running locally
 
-Prerequisites: [Docker](https://docs.docker.com/get-docker/),
-[uv](https://docs.astral.sh/uv/), and `make`.
+Prerequisites: [Docker](https://docs.docker.com/get-docker/) and `make`. That's all:
+tests, linting and migrations run in a `dev` container, so no local Python is needed.
 
 ```bash
 cp .env.example .env
 make up          # postgres + redis, runs migrations, starts the API on :8080
 curl localhost:8080/health/ready
-```
-
-Develop on the host with hot reload (uses the compose Postgres/Redis):
-
-```bash
-make install     # uv sync: creates .venv from uv.lock
-make migrate
-make run         # http://localhost:8000/docs
+make test        # pytest inside the dev container, against the compose services
 ```
 
 | Command | What it does |
 |---|---|
 | `make test` | pytest against the real Postgres/Redis (needs `make up`) |
 | `make lint` / `make fmt` | ruff lint + format check / auto-fix |
+| `make migrate` | apply Alembic migrations |
 | `make revision m="..."` | autogenerate an Alembic migration |
 | `make logs` / `make down` | tail API logs / stop the stack |
+
+Prefer your host Python? Install [uv](https://docs.astral.sh/uv/), run `make install`,
+and add `LOCAL=1` to any target (e.g. `make test LOCAL=1`).
 
 All configuration is via env vars. See [.env.example](.env.example).
 
