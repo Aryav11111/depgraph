@@ -325,3 +325,83 @@ request path. Scoped names are sent as `@scope%2Fname`.
 The cache stores zlib-compressed bytes, so the app's Redis client switched to
 `decode_responses=False`. Only the health check used it before, and `PING` works
 either way.
+
+---
+
+## Stage 1, step 5: Graph builder
+
+### Two parts: pure collapse, then persistence
+- `graph/collapse.py` (pure) turns the parser's install-path graph into one node
+  per identity. This is the only place the identity policy from step 2 lives:
+  - registry → `(name, version)`;
+  - root / workspace / local directory → its path;
+  - git / remote / file tarball → its resolved URL (one commit at two paths is
+    one node).
+- `graph/builder.py` writes the collapsed graph and runs the scan status machine.
+
+### Merge rules
+- A merged node is dev, optional or peer only if **every** copy is: one
+  production copy means the package ships.
+- Duplicate edges (the same dependency seen from two copies of its parent)
+  collapse into one.
+- Copies of the same `name@version` with *different* integrity hashes produce an
+  `integrity_conflict` warning. A copy with no hash is not a conflict.
+
+### Warnings are stored on the scan (`scans.warnings`, JSONB)
+Required-but-unresolved dependencies, integrity conflicts, and **cross-scan
+integrity mismatches** are recorded as warnings. A mismatch means this lockfile's
+hash for `name@version` differs from the first-seen catalogue value. Since npm
+versions are immutable, that is a tampering signal, and it costs nothing to
+detect during the upsert. Optional dependencies that are legitimately absent are
+not reported (noise). The column was added with a constant default, which on
+Postgres 11+ is a metadata-only change (no table rewrite).
+
+### Status lifecycle and atomicity
+`pending → processing → completed | failed`.
+- The graph and the `completed` update share one transaction.
+- On any exception, that transaction rolls back completely, and a *separate*
+  transaction records `failed` and the error (a test proves no partial graph
+  remains).
+- `run_build` re-raises after recording the failure, so the API or worker
+  decides how to surface it.
+- The stored error text never includes SQL: SQLAlchemy's `DBAPIError` puts the
+  statement and its parameters into its message, so those get a generic message
+  and the detail goes to the server log only.
+
+### Bulk writes: one `INSERT … SELECT FROM unnest(arrays)` per table
+- The first version used `executemany`. Profiling showed per-row round trips
+  dominating, so each table is now written in one statement with one array
+  parameter per column.
+- `install_paths` (itself an array) travels as a JSON string, because Postgres
+  multi-dimensional arrays must be rectangular.
+- `RETURNING` order isn't guaranteed, so node ids are mapped back by each node's
+  per-scan natural key (`version_id`, or `(source, ref)`), which are exactly the
+  unique constraints.
+
+### Concurrency
+- Catalogue rows are upserted (`ON CONFLICT DO NOTHING` / conditional
+  `DO UPDATE`), so concurrent scans sharing new packages never duplicate rows.
+- Inserts go in sorted key order, so two transactions lock rows in the same order
+  and can't deadlock.
+- Tested with 4 concurrent builds racing to insert the same 30 new packages.
+
+### Performance, measured (385 nodes / 570 edges)
+| setup | build time |
+|---|---|
+| executemany, host → Docker Desktop | ~450 ms |
+| unnest, host → Docker Desktop | ~250–370 ms |
+| unnest, inside the Docker network | ~140–230 ms |
+
+`EXPLAIN ANALYZE` of the edge insert: 31 ms total, of which 3 ms is the insert and
+28 ms is FK-check triggers. That led to dropping the **redundant** direct FK
+`scan_edges.scan_id → scans`. The two composite FKs through `scan_nodes` already
+guarantee the scan exists, and deletes cascade scans → nodes → edges. The rest
+of the gap is Docker Desktop port forwarding and Postgres running in the WSL2 VM.
+This is fast enough to build synchronously at this size. The decision is
+revisited in step 6.
+
+### The builder does not call the npm registry
+Enriching a scan from the registry (deprecations, an integrity cross-check) would
+be one request per package, ~385 for the fixture, on every scan. The registry
+client's consumer is stage 2's fix suggestions. The cross-scan integrity check
+above gives a cheap tampering signal without the network.

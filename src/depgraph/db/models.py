@@ -28,7 +28,7 @@ from sqlalchemy import (
     func,
     text,
 )
-from sqlalchemy.dialects.postgresql import ARRAY, UUID
+from sqlalchemy.dialects.postgresql import ARRAY, JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from depgraph.db.base import Base
@@ -85,6 +85,9 @@ class Scan(Base):
     node_count: Mapped[int | None] = mapped_column(Integer)
     edge_count: Mapped[int | None] = mapped_column(Integer)
     error: Mapped[str | None] = mapped_column(Text)
+    # Non-fatal findings from parsing/building (unresolved deps, integrity
+    # mismatches): a scan of a slightly inconsistent lockfile still completes.
+    warnings: Mapped[list[dict]] = mapped_column(JSONB, server_default=text("'[]'::jsonb"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
@@ -162,9 +165,10 @@ class ScanEdge(Base):
         Index("ix_scan_edges_scan_id_child_node_id", "scan_id", "child_node_id"),
     )
 
-    scan_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("scans.id", ondelete="CASCADE"), primary_key=True
-    )
+    # No direct FK to scans: the composite FKs below already require the scan
+    # (via scan_nodes), and deleting a scan cascades scans -> nodes -> edges. A
+    # third FK only added a per-row trigger (~15% of edge insert time, measured).
+    scan_id: Mapped[uuid.UUID] = mapped_column(primary_key=True)
     parent_node_id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
     child_node_id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
     dep_type: Mapped[str] = mapped_column(Text, primary_key=True)

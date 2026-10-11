@@ -27,8 +27,8 @@ are planned later layers on top of it.
 | 2. Schema for packages, versions, edges, scans | ✅ done |
 | 3. `package-lock.json` parser (v2 + v3) | ✅ done |
 | 4. npm registry client (rate limits, backoff, Redis cache) | ✅ done |
-| 5. Graph builder (cycles, duplicate subtrees) | ⏳ next |
-| 6. Scan + graph + dependency-path API | planned |
+| 5. Graph builder (cycles, duplicate subtrees) | ✅ done |
+| 6. Scan + graph + dependency-path API | ⏳ next |
 
 ## Architecture
 
@@ -150,6 +150,7 @@ src/depgraph/
   db/              SQLAlchemy base, models, async session
   lockfile/        pure package-lock.json (v2/v3) parser
   registry/        npm registry client: rate limit, retry/backoff, Redis cache
+  graph/           collapse install paths to identities; bulk persist + scan lifecycle
 migrations/        Alembic (async), URL taken from settings
 tests/             pytest, in-process ASGI client against real services
   fixtures/npm/    real npm-generated lockfiles (+ the package.json they came from)
