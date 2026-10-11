@@ -45,6 +45,14 @@ class Settings(BaseSettings):
     osv_include_malicious: bool = True
     osv_batch_size: int = 1000
     osv_download_timeout_s: float = 600.0
+    # Incremental sync.
+    osv_sync_interval_s: float = 3600.0
+    # Re-check records modified up to this long before the cursor (late arrivals).
+    osv_sync_overlap_s: int = 3600
+    # More changed records than this -> one full download instead.
+    osv_incremental_max: int = 5000
+    osv_fetch_concurrency: int = 16
+    osv_fetch_retries: int = 3
 
     # npm registry client. Limits are per process (see NOTES.md, step 4).
     npm_registry_url: str = "https://registry.npmjs.org"

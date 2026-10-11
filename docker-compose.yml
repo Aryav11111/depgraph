@@ -60,6 +60,21 @@ services:
       timeout: 3s
       retries: 20
 
+  # Advisory sync worker: full OSV load on first start (no cursor), then an
+  # incremental sync every OSV_SYNC_INTERVAL_S. A Postgres advisory lock keeps
+  # concurrent syncs out, so running more than one replica is safe.
+  worker:
+    build: .
+    command: ["python", "-m", "depgraph.advisories.cli", "worker"]
+    environment:
+      <<: *app-env
+      OSV_SYNC_INTERVAL_S: ${OSV_SYNC_INTERVAL_S:-3600}
+      OSV_INCLUDE_MALICIOUS: ${OSV_INCLUDE_MALICIOUS:-true}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
   # Tooling container for `make test|lint|fmt|migrate`. Behind a profile so
   # `docker compose up` never starts it; `docker compose run dev ...` does.
   dev:

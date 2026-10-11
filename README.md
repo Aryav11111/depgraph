@@ -38,8 +38,8 @@ are planned later layers on top of it.
 |---|---|
 | OSV advisory ingestion (bulk export; 230k npm records) | ✅ |
 | Semver range matcher (incl. prereleases) | ✅ |
-| Incremental sync worker | ⏳ next |
-| Matching scans against advisories → findings | planned |
+| Incremental sync worker | ✅ |
+| Matching scans against advisories → findings | ⏳ next |
 | Paths to each vulnerable package | planned |
 | Fix suggestions (minimum safe version, direct vs transitive) | planned |
 | Findings API | planned |
@@ -57,8 +57,11 @@ flowchart LR
     end
 
     builder -->|nodes + edges| pg[(Postgres<br/>packages · versions<br/>edges · scans<br/>advisories)]
-    ingest[OSV ingestion<br/><i>bulk export, MD5-verified</i>] -->|advisories, ranges| pg
-    osv[(osv.dev export<br/>GCS bucket)] -->|all.zip| ingest
+    ingest[OSV sync<br/><i>full load, then incremental;<br/>advisory-locked</i>] -->|advisories, ranges| pg
+    osv[(osv.dev export<br/>GCS bucket)] -->|all.zip, then<br/>modified_id.csv deltas| ingest
+    subgraph worker [worker container]
+        ingest
+    end
     api -->|recursive CTE queries| pg
     registry <-->|metadata cache, TTL| redis[(Redis)]
     registry -->|HTTPS| npm[(registry.npmjs.org)]
@@ -130,6 +133,10 @@ make up          # postgres + redis, runs migrations, starts the API on :8080
 curl localhost:8080/health/ready
 make test        # pytest inside the dev container, against the compose services
 ```
+
+`make up` also starts the **advisory worker**. On a fresh database its first sync is a full
+OSV load (~220 MB download, about 2 minutes); after that it syncs incrementally every hour
+(`OSV_SYNC_INTERVAL_S`). One-off: `docker compose run --rm worker python -m depgraph.advisories.cli sync`.
 
 | Command | What it does |
 |---|---|

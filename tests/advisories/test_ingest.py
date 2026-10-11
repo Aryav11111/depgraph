@@ -2,8 +2,6 @@
 
 import base64
 import hashlib
-import json
-import zipfile
 from collections.abc import AsyncIterator
 from pathlib import Path
 
@@ -17,23 +15,10 @@ from depgraph.advisories.osv import parse_timestamp
 from depgraph.core.config import Settings
 from depgraph.db.models import AdvisoryAffected, AdvisoryAlias, AdvisoryRecord, AdvisorySyncRun
 from depgraph.db.session import create_sessionmaker
-from tests.helpers import FIXTURES
+from tests.helpers import make_zip, osv_records
 
-FIXTURE_IDS = sorted(p.stem for p in (FIXTURES / "osv").glob("*.json"))
-
-
-def records() -> dict[str, dict]:
-    return {
-        i: json.loads((FIXTURES / "osv" / f"{i}.json").read_text(encoding="utf-8"))
-        for i in FIXTURE_IDS
-    }
-
-
-def make_zip(path: Path, docs: dict[str, dict | bytes]) -> Path:
-    with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as zf:
-        for name, doc in docs.items():
-            zf.writestr(f"{name}.json", doc if isinstance(doc, bytes) else json.dumps(doc))
-    return path
+FIXTURE_IDS = sorted(osv_records())
+records = osv_records
 
 
 @pytest.fixture

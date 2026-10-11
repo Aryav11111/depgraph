@@ -55,3 +55,9 @@ def configure_logging(settings: Settings) -> None:
         lg.handlers = []
         lg.propagate = True
     logging.getLogger("uvicorn.access").disabled = True
+
+    # httpx/httpcore log every request at INFO: thousands of lines per advisory
+    # sync. Our own events (npm_registry_retry, advisory_sync_completed, ...)
+    # already record what matters; keep their warnings and errors only.
+    for name in ("httpx", "httpcore"):
+        logging.getLogger(name).setLevel(max(root.level, logging.WARNING))

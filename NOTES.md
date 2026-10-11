@@ -654,3 +654,69 @@ so they are shorthand; adding coercion for bounds took errors to **0**.
 They were: fixed inclusive, last_affected exclusive, wrong tie order, release
 below prerelease, text before numeric ids, numeric ids compared as text, no event
 sort, build metadata compared, versions list ignored, ECOSYSTEM not evaluated.
+
+## Step 3: Incremental sync worker
+
+### Change detection from OSV's own index
+OSV publishes `npm/modified_id.csv` (~8.7 MB): every record id with its
+`modified` timestamp, **newest first**. One sync works like this:
+1. `GET modified_id.csv` with `If-None-Match: <last CSV ETag>`. An unchanged
+   export is a **304**: no body, no record fetches.
+2. Stream it line by line and **stop reading** at the first record older than the
+   cursor (minus the overlap). Cost scales with what changed, not with the
+   230k-record database.
+3. Fetch just those records (`npm/<id>.json`) with bounded concurrency (16) and
+   retries, then upsert them through the **same idempotent, modified-guarded path**
+   as the full load. A 404 for a listed record is logged and skipped.
+4. New cursor = `max(old cursor, newest applied)`. **It never moves backwards**,
+   and it is only advanced by a *completed* run, so a failed run resumes from the
+   last good cursor.
+
+### The overlap window (1 hour, configurable)
+A record can appear in the export with a `modified` timestamp *older* than ones
+already synced (pipeline delays). A strict `> cursor` scan would never see it.
+The sync re-checks everything modified after `cursor - overlap`, and because
+upserts are idempotent and modified-guarded, re-processing is free. Tests pin
+both halves: `test_overlap_window_is_needed` (a strict scan misses the record)
+and `test_overlap_window_rechecks_late_arrivals` (the sync applies it).
+
+### Fallback to a full load
+There is no cursor yet (fresh database), or the backlog exceeds
+`OSV_INCREMENTAL_MAX` (5,000). One 220 MB streamed download beats thousands of
+small requests, and the full load is equally idempotent.
+
+### One sync at a time: a Postgres advisory lock
+`pg_try_advisory_lock(<fixed key>)` is taken on a dedicated connection for the
+sync's duration. It is non-blocking: a second worker or a manual `sync` logs
+"skipped" and returns. The lock lives in the database everything already shares,
+so there is no extra coordination service. It is session-scoped, so if a worker
+dies, Postgres drops its connection **and its lock** (tested by invalidating the
+holding connection). A crashed worker can't wedge syncing.
+
+### Worker vs job
+- `cli sync`: one-shot. This is the **Cloud Run** shape: a Cloud Run Job
+  triggered by Cloud Scheduler, which costs nothing between runs.
+- `cli worker`: a loop (`sync`, then sleep `OSV_SYNC_INTERVAL_S`, default 1 h).
+  This is the **docker-compose `worker` service** you asked for. A failed sync is
+  logged and retried next interval; it never kills the worker.
+- **SIGTERM** sets a stop event. The worker finishes the current sync (never
+  stopping mid-batch) and exits immediately if it is sleeping. Measured
+  `docker compose stop worker`: **1.2 s, exit 0**.
+
+### What changed is tracked
+Every run, including 304 no-ops, writes an `advisory_sync_runs` row (mode,
+status, seen/inserted/updated/unchanged, cursor, ETag, error).
+`advisories.last_changed_run_id` marks exactly which advisories each run
+changed. Step 4 re-matches existing scans against just those.
+
+### Verified against the live OSV bucket
+- The worker started on the dev database (cursor from the afternoon full load),
+  ran an **incremental sync, listed 9 records in the overlap window, all
+  unchanged, in 1.3 s** (vs 1 min 54 s for a full load).
+- On restart, the CSV ETag matched: **304, 0.7 s, no record fetches**.
+
+### Fix found while watching real logs
+httpx logs every request at INFO, which would be thousands of lines per large
+sync. It is now set to WARNING; our own structured events
+(`advisory_sync_completed` with counts, `npm_registry_retry`, ...) carry what
+matters.

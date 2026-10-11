@@ -1,5 +1,7 @@
-"""Builders for hand-written test lockfiles, shared across test packages."""
+"""Test data builders shared across test packages: lockfiles and OSV archives."""
 
+import json
+import zipfile
 from pathlib import Path
 from typing import Any
 
@@ -28,3 +30,19 @@ def lock(packages: dict[str, Any], *, version: int = 3, root: dict | None = None
 
 def realworld_lock(version: int = 3) -> bytes:
     return (FIXTURES / "npm" / "realworld" / f"package-lock.v{version}.json").read_bytes()
+
+
+def osv_records() -> dict[str, dict]:
+    """The real OSV records in tests/fixtures/osv, by id."""
+    return {
+        p.stem: json.loads(p.read_text(encoding="utf-8"))
+        for p in sorted((FIXTURES / "osv").glob("*.json"))
+    }
+
+
+def make_zip(path: Path, docs: dict[str, dict | bytes]) -> Path:
+    """An OSV-style all.zip: one <id>.json per record."""
+    with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as zf:
+        for name, doc in docs.items():
+            zf.writestr(f"{name}.json", doc if isinstance(doc, bytes) else json.dumps(doc))
+    return path

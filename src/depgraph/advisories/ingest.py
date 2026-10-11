@@ -300,7 +300,7 @@ async def full_load(
     archive: Path | None = None,
 ) -> int:
     """Download (unless `archive` is given) and ingest the whole export. Returns run id."""
-    run_id = await _start_run(sessionmaker, "full")
+    run_id = await start_run(sessionmaker, "full")
     bound = log.bind(run_id=run_id, mode="full")
     try:
         with tempfile.TemporaryDirectory(prefix="osv-") as tmp:
@@ -317,10 +317,10 @@ async def full_load(
                 include_malicious=settings.osv_include_malicious,
                 batch_size=settings.osv_batch_size,
             )
-        await _finish_run(sessionmaker, run_id, counts, cursor, etag)
+        await finish_run(sessionmaker, run_id, counts, cursor, etag)
     except Exception as exc:
         bound.exception("advisory_ingest_failed")
-        await _fail_run(sessionmaker, run_id, exc)
+        await fail_run(sessionmaker, run_id, exc)
         raise
     bound.info(
         "advisory_ingest_completed",
@@ -330,7 +330,7 @@ async def full_load(
     return run_id
 
 
-async def _start_run(sessionmaker: async_sessionmaker[AsyncSession], mode: str) -> int:
+async def start_run(sessionmaker: async_sessionmaker[AsyncSession], mode: str) -> int:
     async with sessionmaker.begin() as session:
         run = AdvisorySyncRun(mode=mode)
         session.add(run)
@@ -338,7 +338,7 @@ async def _start_run(sessionmaker: async_sessionmaker[AsyncSession], mode: str) 
         return run.id
 
 
-async def _finish_run(
+async def finish_run(
     sessionmaker: async_sessionmaker[AsyncSession],
     run_id: int,
     counts: UpsertCounts,
@@ -362,7 +362,7 @@ async def _finish_run(
         )
 
 
-async def _fail_run(
+async def fail_run(
     sessionmaker: async_sessionmaker[AsyncSession], run_id: int, exc: BaseException
 ) -> None:
     async with sessionmaker.begin() as session:
