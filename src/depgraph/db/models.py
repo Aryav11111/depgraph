@@ -91,6 +91,8 @@ class Scan(Base):
     warnings: Mapped[list[dict]] = mapped_column(JSONB, server_default=text("'[]'::jsonb"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # When findings were last fully computed for this scan (NULL: never).
+    matched_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class ScanNode(Base):
@@ -211,6 +213,8 @@ class AdvisorySyncRun(Base):
     updated: Mapped[int] = mapped_column(Integer, server_default="0")
     unchanged: Mapped[int] = mapped_column(Integer, server_default="0")
     error: Mapped[str | None] = mapped_column(Text)
+    # When this run's changed advisories were re-matched against existing scans.
+    rematched_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class AdvisoryRecord(Base):
@@ -272,3 +276,37 @@ class AdvisoryAffected(Base):
     package: Mapped[str] = mapped_column(Text)
     ranges: Mapped[list[dict]] = mapped_column(JSONB, server_default=text("'[]'::jsonb"))
     versions: Mapped[list[str]] = mapped_column(ARRAY(Text), server_default="{}")
+
+
+# --------------------------------------------------------------------------
+# Findings: advisory matches in scans. See NOTES.md, "Stage 2 / step 4".
+# --------------------------------------------------------------------------
+
+
+class Finding(Base):
+    """`scan_node` (a package version in a scan) is affected by `advisory`.
+
+    Rows are upserted, not replaced, on re-match: `created_at` is when this
+    issue was first detected in this scan; `updated_at` when it was last
+    confirmed. Paths and fix suggestions are derived on read.
+    """
+
+    __tablename__ = "findings"
+    __table_args__ = (
+        UniqueConstraint("scan_node_id", "advisory_id"),
+        ForeignKeyConstraint(
+            ["scan_id", "scan_node_id"],
+            ["scan_nodes.scan_id", "scan_nodes.id"],
+            ondelete="CASCADE",
+            name="fk_findings_scan_node",
+        ),
+        Index("ix_findings_scan_id", "scan_id"),
+        Index("ix_findings_advisory_id", "advisory_id"),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    scan_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))
+    scan_node_id: Mapped[int] = mapped_column(BigInteger)
+    advisory_id: Mapped[str] = mapped_column(ForeignKey("advisories.id", ondelete="CASCADE"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

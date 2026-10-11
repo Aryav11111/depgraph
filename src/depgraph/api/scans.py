@@ -11,6 +11,7 @@ from fastapi import APIRouter, HTTPException, Query, Request, Response, status
 from depgraph.api.deps import SessionDep
 from depgraph.api.schemas import EdgeOut, GraphOut, NodeOut, PathsOut, PathStep, ScanOut
 from depgraph.db.models import Scan
+from depgraph.findings.matching import match_scan
 from depgraph.graph import queries
 from depgraph.graph.builder import run_build
 from depgraph.graph.paths import find_paths
@@ -82,6 +83,14 @@ async def create_scan(request: Request, response: Response, session: SessionDep)
         raise HTTPException(
             status.HTTP_500_INTERNAL_SERVER_ERROR, f"building scan {scan_id} failed"
         ) from exc
+
+    # Findings are best-effort at upload: if matching fails the graph is still
+    # good, matched_at stays NULL, and the next advisory sync re-matches.
+    try:
+        async with maker.begin() as s:
+            await match_scan(s, scan_id)
+    except Exception:
+        log.exception("scan_match_failed", scan_id=str(scan_id))
 
     response.headers["Location"] = f"/scans/{scan_id}"
     return await _get_scan(session, scan_id)

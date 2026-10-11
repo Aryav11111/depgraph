@@ -39,8 +39,8 @@ are planned later layers on top of it.
 | OSV advisory ingestion (bulk export; 230k npm records) | ✅ |
 | Semver range matcher (incl. prereleases) | ✅ |
 | Incremental sync worker | ✅ |
-| Matching scans against advisories → findings | ⏳ next |
-| Paths to each vulnerable package | planned |
+| Matching scans against advisories → findings (verified identical to `npm audit`) | ✅ |
+| Paths to each vulnerable package | ⏳ next |
 | Fix suggestions (minimum safe version, direct vs transitive) | planned |
 | Findings API | planned |
 
@@ -205,6 +205,7 @@ src/depgraph/
   registry/        npm registry client: rate limit, retry/backoff, Redis cache
   graph/           collapse install paths to identities; bulk persist + scan lifecycle
   advisories/      OSV normalization, CVSS v3 scoring, ingestion, semver + range matcher
+  findings/        match scans against advisories; re-match after each sync
 migrations/        Alembic (async), URL taken from settings
 tests/             pytest, in-process ASGI client against real services
   fixtures/npm/    real npm-generated lockfiles (+ the package.json they came from)

@@ -43,6 +43,7 @@ from depgraph.advisories.osv import parse_timestamp
 from depgraph.core.config import Settings
 from depgraph.db.models import AdvisorySyncRun
 from depgraph.db.session import create_sessionmaker
+from depgraph.findings.matching import rematch_pending
 
 log = structlog.get_logger(__name__)
 
@@ -91,7 +92,11 @@ async def sync(engine: AsyncEngine, http: httpx.AsyncClient, settings: Settings)
         if not got:
             log.info("advisory_sync_skipped", reason="another sync is running")
             return None
-        return await _sync_locked(engine, http, settings)
+        run_id = await _sync_locked(engine, http, settings)
+        # Still under the lock: push changed advisories into existing scans'
+        # findings (including any earlier run whose re-match failed).
+        await rematch_pending(create_sessionmaker(engine))
+        return run_id
 
 
 async def _sync_locked(engine: AsyncEngine, http: httpx.AsyncClient, settings: Settings) -> int:

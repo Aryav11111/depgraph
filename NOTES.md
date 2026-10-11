@@ -720,3 +720,64 @@ httpx logs every request at INFO, which would be thousands of lines per large
 sync. It is now set to WARNING; our own structured events
 (`advisory_sync_completed` with counts, `npm_registry_retry`, ...) carry what
 matters.
+
+## Step 4: Matching scans against advisories
+
+### `findings` table
+One row per (scan node, advisory), where a scan node is one `name@version` in one
+scan.
+- A composite FK to `scan_nodes(scan_id, id)` keeps a finding inside its own scan,
+  and deleting a scan cascades through nodes to findings.
+- Unique on `(scan_node_id, advisory_id)`.
+- `created_at` means **first detected**; `updated_at` means last confirmed.
+- Severity, aliases and the rest come from the advisory by join. Paths and fix
+  suggestions are derived on read (steps 5 and 6), so they can never go stale.
+
+### One matcher, two scopes
+- `match()` is **pure**: installed `(scan, node, name, version)` × affected
+  entries → a set of matches. An advisory matches if **any** of its entries for
+  the package does (real data repeats a package across entries).
+  - An unparseable range in one entry doesn't hide matches from the others.
+  - Unevaluable ranges and versions are counted and logged, never guessed.
+- SQL narrows the candidates: `advisory_affected.package = ANY(:names)` on the
+  `(ecosystem, package)` index, withdrawn advisories excluded. Python evaluates
+  semver on what's left.
+- **`match_scan(scan)`**: every advisory against one scan. It runs at upload,
+  right after the graph build, and sets `scans.matched_at`.
+- **`rematch_advisories(ids)`**: these advisories against **every completed
+  scan**. This is how a newly published advisory reaches scans uploaded before it
+  existed, how a narrowed range drops findings, and how a **withdrawal** removes
+  them (the candidate query excludes withdrawn advisories, so reconciliation
+  deletes their findings).
+
+### Reconciliation: upsert plus scoped delete, not delete-all-and-reinsert
+Within a scope (one scan, or a set of advisories), findings not in the new match
+set are deleted (`NOT EXISTS` against an `unnest` of the matches), then the
+matches are upserted (`ON CONFLICT … DO UPDATE SET updated_at`). Existing
+findings keep their `created_at`, so "first detected" survives every re-match,
+which is what alerting on *new* issues needs later.
+
+### Getting sync changes into scans, self-healing
+Each sync marks changed advisories with `last_changed_run_id`. After the sync,
+still under the advisory lock, **`rematch_pending()` processes every completed
+run whose `rematched_at` is NULL** and then stamps it. If re-matching crashes,
+the next sync picks those runs up again instead of their advisories silently
+never reaching existing scans (tested by failing it once on purpose). A full
+load changes ~230k advisories, so above 20k it switches to a full `match_scan`
+per scan, which is cheaper than evaluating every advisory against every scan.
+
+Upload-time matching is **best-effort**. If it fails, the scan and graph still
+stand, `matched_at` stays NULL, and the next sync re-matches.
+
+### Verified against reality: an exact match with `npm audit`
+I uploaded the real-world fixture to the stack running the full 230k-advisory
+database, then ran `npm audit` (GitHub's advisory database) on the same lockfile:
+
+| | findings | package/advisory pairs |
+|---|---|---|
+| depgraph | 11 | vite ×3, vitest ×2, tinypool ×2, react-router ×2, esbuild, @vitest/mocker |
+| npm audit | 11 | **identical set, identical severities** |
+
+This is an end-to-end check of the OSV export, normalization, severity, the semver
+matcher and the collapsed graph against an independent implementation. Step 8
+turns it into a regression test.

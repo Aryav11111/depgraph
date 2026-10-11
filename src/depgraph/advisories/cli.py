@@ -21,6 +21,7 @@ from depgraph.advisories.sync import install_stop_handlers, run_worker, sync
 from depgraph.core.config import get_settings
 from depgraph.core.logging import configure_logging
 from depgraph.db.session import create_engine, create_sessionmaker
+from depgraph.findings.matching import rematch_pending
 
 
 async def _run(command: str, archive: Path | None) -> None:
@@ -33,7 +34,11 @@ async def _run(command: str, archive: Path | None) -> None:
             headers={"User-Agent": f"depgraph/{__version__}"},
         ) as http:
             if command == "full":
-                await full_load(create_sessionmaker(engine), http, settings, archive=archive)
+                maker = create_sessionmaker(engine)
+                await full_load(maker, http, settings, archive=archive)
+                await rematch_pending(maker)
+            elif command == "rematch":
+                await rematch_pending(create_sessionmaker(engine))
             elif command == "sync":
                 await sync(engine, http, settings)
             else:
@@ -50,6 +55,7 @@ def main(argv: list[str] | None = None) -> None:
     full = sub.add_parser("full", help="download and ingest the full OSV export")
     full.add_argument("--archive", type=Path, help="ingest a local all.zip instead")
     sub.add_parser("sync", help="run one incremental sync (full load if no cursor)")
+    sub.add_parser("rematch", help="push un-rematched sync runs into scan findings")
     sub.add_parser("worker", help="sync every OSV_SYNC_INTERVAL_S until stopped")
     args = parser.parse_args(argv)
     asyncio.run(_run(args.command, getattr(args, "archive", None)))
