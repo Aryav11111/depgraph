@@ -42,7 +42,8 @@ are planned later layers on top of it.
 | Matching scans against advisories → findings (verified identical to `npm audit`) | ✅ |
 | Paths to each vulnerable package | ✅ |
 | Fix suggestions (minimum safe version, direct vs transitive, parent upgrades) | ✅ |
-| Findings API | ⏳ next |
+| Findings API | ✅ |
+| Known-vulnerable fixture checked against `npm audit` | ⏳ next |
 
 ## Architecture
 
@@ -161,6 +162,8 @@ Interactive docs are served at `/docs` (OpenAPI).
 | `GET` | `/scans/{id}` | Scan status, counts and warnings (e.g. unresolved dependencies, integrity mismatches). |
 | `GET` | `/scans/{id}/graph` | The full resolved graph: every package node and dependency edge. |
 | `GET` | `/scans/{id}/paths?package=&version=&max_paths=&max_depth=` | Every dependency path from the project root to a package, shortest first, capped (`truncated` says if a cap was hit). |
+| `GET` | `/scans/{id}/findings?severity=&min_severity=&kind=` | Vulnerable and malicious packages in the scan, most severe first, each with its shortest dependency path, `direct` and `dev_only` flags, and counts per severity. |
+| `GET` | `/scans/{id}/findings/{finding_id}?max_paths=&max_depth=` | One finding: the advisory (details, CVSS, aliases, references), **every** path to the package (shortest first, capped), and a **fix suggestion**. |
 | `GET` | `/health` | Liveness: the process is up. Never touches dependencies. |
 | `GET` | `/health/ready` | Readiness: Postgres and Redis respond. Returns `503` with per-check detail otherwise. |
 
@@ -182,6 +185,30 @@ acme-dashboard -> express@4.22.3 -> body-parser@1.20.8 -> debug@2.6.9
 acme-dashboard -> express@4.22.3 -> finalhandler@1.3.2 -> debug@2.6.9
 (truncated: more paths exist)
 ```
+
+### Example: from finding to fix
+
+Real output for the fixture lockfile, against the full OSV database and the live npm
+registry:
+
+```
+GET /scans/{id}/findings?min_severity=HIGH
+  CRITICAL vitest@2.1.9    GHSA-5xrq-8626-4rwp  direct   via acme-dashboard > vitest
+  CRITICAL tinypool@1.1.1  GHSA-5gmw-xhrv-c9v3  dev_only via acme-dashboard > vitest > tinypool
+  CRITICAL tinypool@1.1.1  GHSA-85c8-ppgw-ccpr  dev_only via acme-dashboard > vitest > tinypool
+  HIGH     vite@5.4.21     GHSA-fx2h-pf6j-xcff  direct   via acme-dashboard > vite
+
+GET /scans/{id}/findings/5
+  Tinypool: Prototype Pollution gadget in worker options leads to Remote Code Execution
+  path:  acme-dashboard -[dev]-> vitest -> tinypool
+  fix:   tinypool 2.1.1 (breaking), action: upgrade_parent_or_override
+         "vitest@2.1.9 (^1.0.1) does not allow tinypool@2.1.1. Upgrade vitest to 4.0.0,
+          or force it with an npm override: "overrides": {"tinypool": "2.1.1"}."
+```
+
+The findings for this lockfile are **identical to `npm audit`** (11 of 11, same severities).
+Fix versions match npm audit's vulnerable ranges; parent upgrades are the *minimum*
+release that unblocks the fix rather than the latest.
 
 ### How path queries stay fast on huge graphs
 

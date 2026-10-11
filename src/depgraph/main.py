@@ -8,11 +8,12 @@ from fastapi import FastAPI
 from redis.asyncio import Redis
 
 from depgraph import __version__
-from depgraph.api import health, scans
+from depgraph.api import findings, health, scans
 from depgraph.api.middleware import RequestContextMiddleware
 from depgraph.core.config import Settings, get_settings
 from depgraph.core.logging import configure_logging
 from depgraph.db.session import create_engine, create_sessionmaker
+from depgraph.registry.npm import NpmRegistryClient
 
 log = structlog.get_logger(__name__)
 
@@ -30,10 +31,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         app.state.sessionmaker = create_sessionmaker(engine)
         # Bytes in/out: the registry cache stores compressed payloads.
         app.state.redis = Redis.from_url(settings.redis_url.get_secret_value())
+        # Shared npm client: one connection pool + single-flight table per process.
+        app.state.npm = NpmRegistryClient.from_settings(settings, app.state.redis)
         log.info("startup", env=settings.app_env, version=__version__)
         try:
             yield
         finally:
+            await app.state.npm.aclose()
             await app.state.redis.aclose()
             await engine.dispose()
             log.info("shutdown")
@@ -43,4 +47,5 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.add_middleware(RequestContextMiddleware)
     app.include_router(health.router)
     app.include_router(scans.router)
+    app.include_router(findings.router)
     return app

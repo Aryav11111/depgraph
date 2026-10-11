@@ -43,6 +43,9 @@ class FindingRow:
     published: datetime | None
     first_detected: datetime
     last_confirmed: datetime
+    # npm's own flag: every install path to this package is through devDependencies,
+    # so it is not part of a production install (`npm ci --omit=dev`).
+    dev_only: bool
 
 
 _SELECT = """
@@ -50,7 +53,7 @@ _SELECT = """
            a.cvss_v3_score, a.summary,
            COALESCE((SELECT array_agg(al.alias ORDER BY al.alias) FROM advisory_aliases al
                      WHERE al.advisory_id = a.id), '{}') AS aliases,
-           a.published, f.created_at, f.updated_at
+           a.published, f.created_at, f.updated_at, n.is_dev
     FROM findings f
     JOIN advisories a ON a.id = f.advisory_id
     JOIN scan_nodes n ON n.id = f.scan_node_id

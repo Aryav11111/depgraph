@@ -8,6 +8,7 @@ from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from depgraph.db.session import session_scope
+from depgraph.registry.npm import NpmRegistryClient
 
 
 async def get_session(request: Request) -> AsyncIterator[AsyncSession]:
@@ -21,3 +22,10 @@ def get_redis(request: Request) -> Redis:
 
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
 RedisDep = Annotated[Redis, Depends(get_redis)]
+
+
+def get_npm(request: Request) -> NpmRegistryClient:
+    return request.app.state.npm
+
+
+NpmDep = Annotated[NpmRegistryClient, Depends(get_npm)]

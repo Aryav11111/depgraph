@@ -877,3 +877,32 @@ Two of my test expectations were wrong, and the code was right both times:
 - with `fixed: 4.17.22-beta.1`, 4.17.21 is still affected (it sorts below the
   beta), so the answer is 4.17.23;
 - `~1.2.5` *does* admit 1.2.6 (`>=1.2.5 <1.3.0`).
+
+## Step 7: Findings API
+
+- `GET /scans/{id}/findings`: most severe first (then CVSS, then name).
+  - Filters: `severity` (repeatable, exact levels), `min_severity` (threshold) and
+    `kind` (`vulnerability`/`malicious`). Invalid values are a 422 via `Literal`
+    types.
+  - `counts` per severity are **unfiltered**, so a UI can show totals while
+    filtering.
+  - `matched_at` says whether findings have been computed.
+  - Each finding carries its batched shortest path and these flags:
+    - `direct`: the shortest path is root → package.
+    - `dev_only`: npm's own lockfile flag, meaning every install path goes
+      through devDependencies. The real fixture showed why this matters: its
+      CRITICAL tinypool RCE is reachable only via `vitest[dev]`, so it never
+      ships to production. That is a different priority from a runtime
+      dependency, and the flag makes it visible without reading paths.
+- `GET /scans/{id}/findings/{finding_id}`: the advisory (details and references
+  come from the stored raw OSV record), **all** paths (capped, `paths_truncated`)
+  and the fix suggestion.
+  - The npm client is created once in the app lifespan and injected with a
+    FastAPI dependency. Tests swap in a `MockTransport` client through
+    `dependency_overrides`, and a test proves the endpoint degrades to
+    advisory-derived fixes when the registry returns 503.
+- Responses use explicit Pydantic models, so the OpenAPI schema documents the
+  contract and internal columns never leak.
+- **Live check:** the detail endpoint for a real finding took ~0.9 s cold, which
+  includes two live registry packument fetches for the package and its parent.
+  Repeat calls hit the Redis cache.
