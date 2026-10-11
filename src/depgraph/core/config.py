@@ -38,6 +38,14 @@ class Settings(BaseSettings):
     # Bounds work per request: dependency-path counts grow exponentially.
     paths_max_expansions: int = 200_000
 
+    # OSV advisory ingestion.
+    osv_base_url: str = "https://osv-vulnerabilities.storage.googleapis.com"
+    osv_ecosystem: str = "npm"
+    # Include OpenSSF malicious-package reports (MAL-*, ~97% of npm records).
+    osv_include_malicious: bool = True
+    osv_batch_size: int = 1000
+    osv_download_timeout_s: float = 600.0
+
     # npm registry client. Limits are per process (see NOTES.md, step 4).
     npm_registry_url: str = "https://registry.npmjs.org"
     npm_timeout_s: float = 10.0

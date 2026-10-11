@@ -21,14 +21,28 @@ are planned later layers on top of it.
 
 ## Status
 
-| Stage | State |
+**Stage 1: lockfile → dependency graph** ✅
+
+| Step | State |
 |---|---|
-| 1. Scaffold: FastAPI, Postgres, Redis, Alembic, CI | ✅ done |
-| 2. Schema for packages, versions, edges, scans | ✅ done |
-| 3. `package-lock.json` parser (v2 + v3) | ✅ done |
-| 4. npm registry client (rate limits, backoff, Redis cache) | ✅ done |
-| 5. Graph builder (cycles, duplicate subtrees) | ✅ done |
-| 6. Scan + graph + dependency-path API | ✅ done |
+| Scaffold: FastAPI, Postgres, Redis, Alembic, CI | ✅ |
+| Schema for packages, versions, edges, scans | ✅ |
+| `package-lock.json` parser (v2 + v3) | ✅ |
+| npm registry client (rate limits, backoff, Redis cache) | ✅ |
+| Graph builder (cycles, duplicate subtrees) | ✅ |
+| Scan + graph + dependency-path API | ✅ |
+
+**Stage 2: vulnerability and malicious-package detection** (in progress)
+
+| Step | State |
+|---|---|
+| OSV advisory ingestion (bulk export; 230k npm records) | ✅ |
+| Semver range matcher (incl. prereleases) | ⏳ next |
+| Incremental sync worker | planned |
+| Matching scans against advisories → findings | planned |
+| Paths to each vulnerable package | planned |
+| Fix suggestions (minimum safe version, direct vs transitive) | planned |
+| Findings API | planned |
 
 ## Architecture
 
@@ -42,7 +56,9 @@ flowchart LR
         builder --> registry[npm registry client<br/><i>rate limit + backoff</i>]
     end
 
-    builder -->|nodes + edges| pg[(Postgres<br/>packages · versions<br/>edges · scans)]
+    builder -->|nodes + edges| pg[(Postgres<br/>packages · versions<br/>edges · scans<br/>advisories)]
+    ingest[OSV ingestion<br/><i>bulk export, MD5-verified</i>] -->|advisories, ranges| pg
+    osv[(osv.dev export<br/>GCS bucket)] -->|all.zip| ingest
     api -->|recursive CTE queries| pg
     registry <-->|metadata cache, TTL| redis[(Redis)]
     registry -->|HTTPS| npm[(registry.npmjs.org)]
@@ -181,6 +197,7 @@ src/depgraph/
   lockfile/        pure package-lock.json (v2/v3) parser
   registry/        npm registry client: rate limit, retry/backoff, Redis cache
   graph/           collapse install paths to identities; bulk persist + scan lifecycle
+  advisories/      OSV normalization, CVSS v3 scoring, bulk ingestion (+ CLI)
 migrations/        Alembic (async), URL taken from settings
 tests/             pytest, in-process ASGI client against real services
   fixtures/npm/    real npm-generated lockfiles (+ the package.json they came from)

@@ -21,9 +21,9 @@ from typing import Any
 
 import structlog
 from sqlalchemy import text, update
-from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from depgraph.core.errors import safe_error_text
 from depgraph.db.models import Scan
 from depgraph.graph.collapse import CollapsedGraph, NodeKey, collapse
 from depgraph.lockfile.npm import LockfileGraph, Source
@@ -236,11 +236,4 @@ async def run_build(
 
 
 def _describe(exc: BaseException) -> str:
-    """Error text stored on the scan, later shown to API clients.
-
-    Database errors stringify with the SQL and bound parameters, which must not
-    leak; they get a generic message (the full detail is in the server log).
-    """
-    if isinstance(exc, DBAPIError):
-        return f"{type(exc).__name__}: database error while storing the graph"
-    return f"{type(exc).__name__}: {exc}"[:1000]
+    return safe_error_text(exc, db_message="database error while storing the graph")

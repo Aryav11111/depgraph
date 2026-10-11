@@ -483,3 +483,104 @@ visible as such, which matters for "does this actually ship?".
   nodes.
 - Paths respect the collapse inaccuracy from step 2: a merged
   `name@version` node can join edges from different install paths.
+
+---
+
+# Stage 2: Vulnerability detection
+
+## Step 1: OSV advisory ingestion
+
+### The dataset, measured before designing (npm export, 2026-10-11)
+`all.zip` is 218 MB with **230,283 records**:
+- **7,837 vulnerabilities** (GHSA/CVE).
+- **222,446 malicious-package reports** (`MAL-*`, from OpenSSF's malicious-packages
+  project), about 97% of the export.
+
+What matters for the design:
+
+| Fact | Consequence |
+|---|---|
+| Raw JSON is 386 MB, 362 MB of it MAL `details` prose | `raw` is the only copy of `details`; no duplicate column |
+| Range types: `SEMVER` 219k, `ECOSYSTEM` 33 | both use npm semver semantics |
+| Events: `introduced`, `fixed`, `last_affected`; **no `limit`** in practice | the matcher must handle all three |
+| 14.5k affected entries list explicit `versions` only, no ranges | the matcher must check the list, not just ranges |
+| One advisory can list the **same package in several affected entries** (GHSA-27f5: four) | match = OR across entries |
+| Multi-ecosystem records (EEF-CVE-2026-56812: Hex + npm) | keep only `npm` entries |
+| 1,140 bounds are prereleases (`1.2.0-rc.0`) | SemVer 2.0 precedence, tested in step 2 |
+| 730 withdrawn | stored with `withdrawn`, excluded from matching |
+| 1,289 have only a CVSS **v4** vector | GHSA's curated severity label is the primary source |
+| 6 records contain `\u0000` | Postgres JSONB rejects U+0000; replaced with U+FFFD |
+| 0 records failed to parse | the normalizer is right for real data |
+
+### Decision: ingest malicious-package reports too
+You asked for vulnerability detection, but for a supply-chain platform a
+known-malicious package version (credential-stealing typosquats with install
+hooks) is the highest-value signal there is, and it uses the same range-matching
+machinery. `kind` (`vulnerability | malicious`) separates them, and
+`OSV_INCLUDE_MALICIOUS=false` turns them off. Malicious packages get severity
+`CRITICAL` by policy: installing one runs attacker code, whatever a CVSS score
+would say. **Flagged for you to revisit.**
+
+### Schema
+- `advisories`: one row per OSV id. Normalized `kind`, `severity`,
+  `cvss_v3_vector`/`cvss_v3_score`, `cvss_v4_vector`, timestamps, `raw` (the full
+  record), and `last_changed_run_id`.
+- `advisory_aliases (advisory_id, alias)`: CVE/GHSA cross-references, indexed by
+  alias, so "is CVE-2021-23337 in my project?" is a lookup.
+- `advisory_affected`: one row **per affected entry**, with `(ecosystem, package)`
+  indexed, `ranges` as JSONB (OSV events verbatim) and `versions text[]`.
+- `advisory_sync_runs`: an audit log of every load or sync, with counts, the
+  `cursor` (max `modified` applied) and the source ETag.
+
+### Trade-off: range events as JSONB, not rows
+Postgres has no npm-semver type (the `semver` extension isn't available on Cloud
+SQL), so "is 4.17.20 in [0, 4.17.21)?" can't be a SQL predicate however the
+events are stored. Rows would buy nothing and would lose the meaningful event
+order. What SQL *should* do is the cheap pre-filter, `package = ANY(scan
+packages)`, which the `(ecosystem, package)` index serves. Semver evaluation then
+happens in Python on that small candidate set (step 2). The alternative,
+precomputing every affected `name@version` by expanding ranges against registry
+version lists, is in effect what step 4's findings table does, but only for
+versions that actually appear in scans.
+
+### Severity
+1. Malicious → `CRITICAL`.
+2. Otherwise GHSA's curated `database_specific.severity` (`MEDIUM` normalized to
+   `MODERATE`). It exists even for v4-only records.
+3. Otherwise derived from the **CVSS v3.1 base score**, computed from the vector
+   by `advisories/cvss.py`, an implementation of the spec formula including
+   v3.1's float-safe Roundup.
+4. Otherwise `UNKNOWN`.
+
+CVSS v4 vectors are stored but not scored: v4 uses a lookup-table model, and every
+v4-only record has a GHSA label anyway. One CVSS reference value in my own test was
+wrong (I wrote 9.0 for `AV:N/AC:H/PR:L/UI:N/S:C/C:H/I:H/A:H`). Hand-computing the
+formula gives 8.5, which the code returned.
+
+### Ingestion mechanics
+- The download is **streamed to a temp file**, never held in memory. Its
+  **MD5 is verified against GCS's `x-goog-hash` header**: a supply-chain tool
+  should verify its own supply chain. A mismatch fails the run.
+- Records are upserted in **committed batches** (1,000): progress survives a
+  crash, and no 230k-row transaction holds locks and WAL for minutes.
+- **Idempotent and monotonic:** `ON CONFLICT … DO UPDATE … WHERE
+  advisories.modified < EXCLUDED.modified`. Re-running is a no-op, and an older
+  export can never roll data back. `RETURNING (xmax = 0)` separates inserts from
+  updates (a known Postgres idiom).
+- For changed advisories only, aliases and affected rows are deleted and
+  re-inserted. Each statement uses the `unnest(arrays)` pattern from stage 1.
+- Unparseable records are logged and skipped, never fatal.
+- A **separate test database**: tests now always run against `<db>_test`, created
+  on demand, because a dev database holding a real 230k-advisory load must never
+  be touched by test cleanup.
+
+### Measured
+- **Full load: 230,283 records in 1 min 54 s** (~2,000/s) from the local archive
+  into Docker Postgres. That gave 233,062 affected rows and 38,869 aliases.
+- **Size: `advisories` 427 MB**, `advisory_affected` 64 MB, aliases 7 MB.
+- **LZ4 had almost no effect, and why:** Postgres only compresses values once a
+  row exceeds ~2 KB (TOAST threshold). The average record is 1.7 KB, so 76% of
+  rows are never compressed, and those that are compress only ~1.4× (JSONB's
+  binary form is bigger than the text, and MAL `details` is prose). Forcing
+  compression (`toast_tuple_target` plus a full rewrite) might save ~30%. At
+  Cloud SQL storage prices that is cents a month, so I stopped there.

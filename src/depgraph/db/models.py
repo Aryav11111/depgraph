@@ -22,6 +22,7 @@ from sqlalchemy import (
     ForeignKeyConstraint,
     Index,
     Integer,
+    Numeric,
     SmallInteger,
     Text,
     UniqueConstraint,
@@ -174,3 +175,100 @@ class ScanEdge(Base):
     dep_type: Mapped[str] = mapped_column(Text, primary_key=True)
     # The range the parent declared (e.g. "^4.17.0"); null if the lockfile omits it.
     declared_range: Mapped[str | None] = mapped_column(Text)
+
+
+# --------------------------------------------------------------------------
+# Advisories (OSV). See NOTES.md, "Stage 2 / step 1".
+# --------------------------------------------------------------------------
+
+ADVISORY_KINDS = ("vulnerability", "malicious")
+SEVERITIES = ("CRITICAL", "HIGH", "MODERATE", "LOW", "UNKNOWN")
+SYNC_MODES = ("full", "incremental")
+SYNC_STATUSES = ("running", "completed", "failed")
+
+
+class AdvisorySyncRun(Base):
+    """One load/sync of the advisory database: an audit log and the sync cursor."""
+
+    __tablename__ = "advisory_sync_runs"
+    __table_args__ = (
+        CheckConstraint(_in("mode", SYNC_MODES), name="mode"),
+        CheckConstraint(_in("status", SYNC_STATUSES), name="status"),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    source: Mapped[str] = mapped_column(Text, server_default="osv")
+    mode: Mapped[str] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(Text, server_default="running")
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Highest advisory `modified` timestamp applied: the next incremental sync
+    # only needs records modified after this.
+    cursor: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    source_etag: Mapped[str | None] = mapped_column(Text)
+    seen: Mapped[int] = mapped_column(Integer, server_default="0")
+    inserted: Mapped[int] = mapped_column(Integer, server_default="0")
+    updated: Mapped[int] = mapped_column(Integer, server_default="0")
+    unchanged: Mapped[int] = mapped_column(Integer, server_default="0")
+    error: Mapped[str | None] = mapped_column(Text)
+
+
+class AdvisoryRecord(Base):
+    __tablename__ = "advisories"
+    __table_args__ = (
+        CheckConstraint(_in("kind", ADVISORY_KINDS), name="kind"),
+        CheckConstraint(_in("severity", SEVERITIES), name="severity"),
+        Index("ix_advisories_last_changed_run_id", "last_changed_run_id"),
+    )
+
+    id: Mapped[str] = mapped_column(Text, primary_key=True)  # OSV id, e.g. GHSA-35jh-r3h4-6jhm
+    kind: Mapped[str] = mapped_column(Text)
+    summary: Mapped[str | None] = mapped_column(Text)
+    severity: Mapped[str] = mapped_column(Text)
+    cvss_v3_vector: Mapped[str | None] = mapped_column(Text)
+    cvss_v3_score: Mapped[float | None] = mapped_column(Numeric(3, 1, asdecimal=False))
+    cvss_v4_vector: Mapped[str | None] = mapped_column(Text)
+    published: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    modified: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    withdrawn: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # The full OSV record, the single copy of `details`, references, etc.
+    # LZ4-compressed via TOAST (set in the migration).
+    raw: Mapped[dict] = mapped_column(JSONB)
+    last_changed_run_id: Mapped[int | None] = mapped_column(
+        ForeignKey("advisory_sync_runs.id", ondelete="SET NULL")
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class AdvisoryAlias(Base):
+    __tablename__ = "advisory_aliases"
+    __table_args__ = (Index("ix_advisory_aliases_alias", "alias"),)
+
+    advisory_id: Mapped[str] = mapped_column(
+        ForeignKey("advisories.id", ondelete="CASCADE"), primary_key=True
+    )
+    alias: Mapped[str] = mapped_column(Text, primary_key=True)  # CVE-..., GHSA-...
+
+
+class AdvisoryAffected(Base):
+    """One affected package of one advisory.
+
+    `ranges` keeps OSV's event lists verbatim ([{"type": "SEMVER", "events":
+    [{"introduced": "0"}, {"fixed": "4.17.21"}]}]). Events are not normalized into
+    rows: Postgres can't compare npm semver, so range evaluation happens in
+    Python regardless, and the event *order* within a range is meaningful.
+    """
+
+    __tablename__ = "advisory_affected"
+    __table_args__ = (
+        Index("ix_advisory_affected_ecosystem_package", "ecosystem", "package"),
+        Index("ix_advisory_affected_advisory_id", "advisory_id"),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    advisory_id: Mapped[str] = mapped_column(ForeignKey("advisories.id", ondelete="CASCADE"))
+    ecosystem: Mapped[str] = mapped_column(Text)
+    package: Mapped[str] = mapped_column(Text)
+    ranges: Mapped[list[dict]] = mapped_column(JSONB, server_default=text("'[]'::jsonb"))
+    versions: Mapped[list[str]] = mapped_column(ARRAY(Text), server_default="{}")

@@ -6,18 +6,48 @@ path that runs in production builds the DB and Redis clients.
 
 Integration tests need the Postgres/Redis from `make up` locally, or the
 service containers in CI; connection details come from DATABASE_URL/REDIS_URL.
+
+Tests never touch the configured database itself: they use `<name>_test` on the
+same server (created on demand), so a local dev database holding real data (e.g.
+a full advisory load) can't be modified or wiped by test cleanup.
 """
 
+import asyncio
+import os
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 import httpx
 import pytest
-from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
+from sqlalchemy import text
+from sqlalchemy.engine import make_url
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, create_async_engine
 
 from depgraph.core.config import Settings
 from depgraph.db.session import create_engine
 from depgraph.main import create_app
+
+# Redirect every Settings() in this process to the test database. Done at import
+# time, before any fixture or app reads configuration.
+_url = make_url(Settings().database_url.get_secret_value())
+if not (_url.database or "").endswith("_test"):
+    _url = _url.set(database=f"{_url.database}_test")
+os.environ["DATABASE_URL"] = _url.render_as_string(hide_password=False)
+TEST_DATABASE_URL = _url
+
+
+async def _ensure_database(url) -> None:
+    admin = create_async_engine(url.set(database="postgres"), isolation_level="AUTOCOMMIT")
+    try:
+        async with admin.connect() as conn:
+            exists = await conn.scalar(
+                text("SELECT 1 FROM pg_database WHERE datname = :n"), {"n": url.database}
+            )
+            if not exists:
+                # Identifier comes from our own config, not user input; quoted anyway.
+                await conn.execute(text(f'CREATE DATABASE "{url.database}"'))
+    finally:
+        await admin.dispose()
 
 
 @asynccontextmanager
@@ -40,12 +70,16 @@ async def client(settings: Settings) -> AsyncIterator[httpx.AsyncClient]:
         yield c
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="session", autouse=True)
 def migrated(request) -> None:
-    """Bring the test database to the latest schema once per session."""
+    """Create the test database if needed and bring it to the latest schema."""
     from alembic import command
     from alembic.config import Config
 
+    from depgraph.core.config import get_settings
+
+    asyncio.run(_ensure_database(TEST_DATABASE_URL))
+    get_settings.cache_clear()  # alembic's env.py reads the (now redirected) env
     command.upgrade(Config(str(request.config.rootpath / "alembic.ini")), "head")
 
 
