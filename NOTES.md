@@ -241,3 +241,87 @@ warnings, not a 500 error.
   edges) fails at least one test. The one mutation that survived was a defensive
   branch for lockfile keys that can't exist, which was deleted rather than kept
   untested.
+
+---
+
+## Stage 1, step 4: npm registry client
+
+### Why it exists (the graph doesn't need it)
+The lockfile already pins every resolved version, so building the graph needs no
+network. The client is for what the lockfile *doesn't* contain:
+- every published version of a package, for stage 2's "minimum fixed version";
+- deprecation notices;
+- registry integrity hashes, to cross-check against the lockfile.
+
+It is built lean around those uses.
+
+### Abbreviated packuments (and the size claim, measured)
+We request `application/vnd.npm.install-v1+json`, the document npm itself
+installs from. My planning estimate of "10–100× smaller" was wrong. Measured on
+2026-10-11:
+
+| package | full | abbreviated | what we cache (trimmed + zlib) |
+|---|---|---|---|
+| typescript (3,850 versions) | 15.8 MB | 8.7 MB | 273 KB |
+| express (290 versions) | n/a | 0.3 MB | 21 KB |
+
+The abbreviated format roughly halves the download. The big win is caching only
+the fields we use (version → integrity, deprecated), compressed, which is about
+30× smaller than the download. The cache key carries a format version (`v1`), so
+adding fields later (e.g. per-version dependencies for stage 2's parent-upgrade
+suggestions) just ignores old entries.
+
+### Layering
+`get_packument(name)`: single-flight → Redis cache → retry → rate limit → HTTP.
+- **Single-flight:** concurrent calls for the same package share one `asyncio.Task`
+  (`shield`ed, so one caller's cancellation doesn't cancel it for the others). A
+  lockfile build can ask for the same package from many places at once.
+- **Cache freshness:** an entry is served without a request for 1 hour. After that
+  it is revalidated with `If-None-Match` (a 304 has no body). Entries are kept
+  7 days so revalidation stays possible. 404s are cached for 5 minutes. Everything
+  is set by env var.
+- **Redis is optional:** any `RedisError` is logged as `npm_cache_unavailable` and
+  we fetch directly. A cache outage must not become a scan outage.
+
+### Retry policy
+- Retried: 429, 5xx, and transport errors (connect, read, timeout).
+- Not retried: 404 (`PackageNotFoundError`, negatively cached) and other 4xx.
+  Repeating a bad request won't fix it.
+- Delay is `Retry-After` when present (seconds or HTTP date), otherwise
+  exponential backoff with **full jitter**, `uniform(0, min(cap, base·2ⁿ))`. Jitter
+  matters because many clients that failed together would otherwise retry
+  together. There is no sleep after the final attempt.
+- The semaphore is released *before* sleeping, so a backing-off request doesn't
+  hold a concurrency slot.
+
+### Rate limiting: semaphore + token bucket, per process
+The concurrency cap bounds open connections. The token bucket bounds request
+*rate* and smooths bursts, serving callers in FIFO order. Both limits apply per
+process, so N Cloud Run instances can send N× the configured rate. A shared Redis
+limiter is the upgrade path, deferred until we actually run more than one worker.
+
+### Bug found by the tests: float rounding in the token bucket
+After sleeping exactly `(1 − tokens)/rate`, the refill can come to 0.9999999
+tokens. The original `while tokens < 1` loop then slept ~1e-17 s repeatedly: an
+infinite loop under a fake clock, and a busy-spin in production. The fix takes
+the token after the computed wait without re-checking, with a regression test.
+
+### Testing approach
+- HTTP: `httpx.MockTransport` with a scripted queue of responses and exceptions.
+  No extra dependency, and CI never touches the network.
+- Time: one fake clock drives cache freshness, `Retry-After` dates, the token
+  bucket and `sleep`, so backoff tests take no wall time and assert exact delays.
+- Redis is real, with a unique key prefix per test, cleaned up afterwards.
+- One `@pytest.mark.live` smoke test hits registry.npmjs.org and is skipped unless
+  `NPM_LIVE_TESTS=1`.
+
+### Package-name validation
+Names are checked before they reach a URL: length, leading `.`/`_`, scope shape,
+whitespace, and `\ ? # %`. This is looser than npm's rules for *new* names, because
+legacy packages have capitals, but strict about anything that could change the
+request path. Scoped names are sent as `@scope%2Fname`.
+
+### Shared Redis client is now bytes-mode
+The cache stores zlib-compressed bytes, so the app's Redis client switched to
+`decode_responses=False`. Only the health check used it before, and `PING` works
+either way.

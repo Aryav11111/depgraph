@@ -34,6 +34,7 @@ ignore = ["S101"]  # assert is fine in tests
 
 [tool.ruff.lint.per-file-ignores]
 "migrations/*" = ["RUF012", "E501"]  # generated DDL strings
+"tests/*" = ["S311"]  # seeded PRNGs for deterministic jitter
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
@@ -41,6 +42,7 @@ asyncio_default_fixture_loop_scope = "session"
 asyncio_default_test_loop_scope = "session"
 testpaths = ["tests"]
 addopts = "-ra --strict-markers"
+markers = ["live: hits real external services; opt-in via env var"]
 
 [dependency-groups]
 dev = [

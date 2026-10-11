@@ -28,9 +28,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         # instance teardown doesn't leave dangling Postgres connections.
         engine = create_engine(settings)
         app.state.sessionmaker = create_sessionmaker(engine)
-        app.state.redis = Redis.from_url(
-            settings.redis_url.get_secret_value(), decode_responses=True
-        )
+        # Bytes in/out: the registry cache stores compressed payloads.
+        app.state.redis = Redis.from_url(settings.redis_url.get_secret_value())
         log.info("startup", env=settings.app_env, version=__version__)
         try:
             yield

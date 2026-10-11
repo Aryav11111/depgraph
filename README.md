@@ -26,8 +26,8 @@ are planned later layers on top of it.
 | 1. Scaffold: FastAPI, Postgres, Redis, Alembic, CI | ✅ done |
 | 2. Schema for packages, versions, edges, scans | ✅ done |
 | 3. `package-lock.json` parser (v2 + v3) | ✅ done |
-| 4. npm registry client (rate limits, backoff, Redis cache) | ⏳ next |
-| 5. Graph builder (cycles, duplicate subtrees) | planned |
+| 4. npm registry client (rate limits, backoff, Redis cache) | ✅ done |
+| 5. Graph builder (cycles, duplicate subtrees) | ⏳ next |
 | 6. Scan + graph + dependency-path API | planned |
 
 ## Architecture
@@ -149,6 +149,7 @@ src/depgraph/
   api/             routers, dependencies, request-context middleware
   db/              SQLAlchemy base, models, async session
   lockfile/        pure package-lock.json (v2/v3) parser
+  registry/        npm registry client: rate limit, retry/backoff, Redis cache
 migrations/        Alembic (async), URL taken from settings
 tests/             pytest, in-process ASGI client against real services
   fixtures/npm/    real npm-generated lockfiles (+ the package.json they came from)
