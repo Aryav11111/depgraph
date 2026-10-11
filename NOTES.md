@@ -906,3 +906,50 @@ Two of my test expectations were wrong, and the code was right both times:
 - **Live check:** the detail endpoint for a real finding took ~0.9 s cold, which
   includes two live registry packument fetches for the package and its parent.
   Repeat calls hit the Redis cache.
+
+## Step 8: Checked against reality
+
+### The reference: `npm audit`
+npm audit asks GitHub's advisory database about a lockfile. That is an independent
+implementation of everything stage 2 does: advisory data, version matching,
+transitive resolution. Matching it exactly is strong end-to-end evidence; a mismatch
+would point at a specific bug.
+
+### Fixtures, all real tool output
+- `npm/vulnerable/`: an unmaintained API pinned to releases with famous advisories
+  (express 4.17.1, lodash 4.17.20, axios 0.21.1, minimist 1.2.5, jsonwebtoken
+  8.5.1, semver 5.7.1, …). npm 10 resolved it to 177 packages.
+- `npm/realworld/`: the stage 1 fixture.
+- Each has an `npm-audit.json` snapshot.
+- `osv/audit-subset.zip`: **every** OSV record that mentions any package in either
+  lockfile (352 records, 633 KB), including the many that don't affect the
+  installed versions, so over-matching fails too.
+
+### Results
+| lockfile | packages | our (package, advisory) pairs | npm audit | agreement |
+|---|---|---|---|---|
+| vulnerable | 177 | 89 | 89 | **89/89, all severities equal** |
+| realworld | 390 | 11 | 11 | **11/11, all severities equal** |
+
+The first comparison was run live (full 230k database through the running API)
+before the offline fixtures existed, and gave the same 89/89.
+
+### Offline, deterministic CI test (`tests/test_against_npm_audit.py`)
+- It loads the subset through the real ingester and uploads both lockfiles through
+  the real API.
+- It asserts the finding sets and severities **equal** npm audit's.
+- **Cross-check with npm's own range strings:** for all 100 findings, the installed
+  version must satisfy npm audit's vulnerable `range` (e.g. `<=4.17.20`), and our
+  fixed version must not, both evaluated with our `npm_range`. That validates the
+  matcher, the fix logic and the range parser against npm in one pass.
+- Spot checks a human can verify (CVE-2021-23337 in lodash, CVE-2021-44906 in
+  minimist, …).
+- **It can fail:** making `fixed` bounds inclusive in the matcher fails 3 of its 7
+  tests.
+- Snapshots are frozen and regenerated together (`scripts/refresh_audit_fixtures.py`,
+  `tests/fixtures/README.md`), so upstream advisory churn can't make CI flaky.
+
+### Why both snapshots must be from the same moment
+If npm audit is re-run later than the OSV subset was taken, a newly published
+advisory appears on one side only, and the test fails for reasons unrelated to
+our code. Regenerating both together keeps it a test of *logic*, not of timing.

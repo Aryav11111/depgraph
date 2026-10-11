@@ -1,0 +1,22 @@
+{
+  "name": "legacy-api",
+  "version": "0.9.0",
+  "private": true,
+  "description": "Fixture: an unmaintained Express API pinned to releases with well-known advisories.",
+  "dependencies": {
+    "axios": "0.21.1",
+    "express": "4.17.1",
+    "handlebars": "4.7.6",
+    "jsonwebtoken": "8.5.1",
+    "lodash": "4.17.20",
+    "minimist": "1.2.5",
+    "moment": "2.29.1",
+    "node-fetch": "2.6.0",
+    "semver": "5.7.1",
+    "ws": "7.4.5"
+  },
+  "devDependencies": {
+    "json5": "1.0.1",
+    "mocha": "8.2.1"
+  }
+}

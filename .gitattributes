@@ -2,3 +2,4 @@
 # Dockerfile contents break under CRLF inside Linux containers.
 * text=auto eol=lf
 *.png binary
+*.zip binary

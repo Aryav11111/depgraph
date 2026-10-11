@@ -32,7 +32,7 @@ are planned later layers on top of it.
 | Graph builder (cycles, duplicate subtrees) | ✅ |
 | Scan + graph + dependency-path API | ✅ |
 
-**Stage 2: vulnerability and malicious-package detection** (in progress)
+**Stage 2: vulnerability and malicious-package detection** ✅
 
 | Step | State |
 |---|---|
@@ -43,7 +43,7 @@ are planned later layers on top of it.
 | Paths to each vulnerable package | ✅ |
 | Fix suggestions (minimum safe version, direct vs transitive, parent upgrades) | ✅ |
 | Findings API | ✅ |
-| Known-vulnerable fixture checked against `npm audit` | ⏳ next |
+| Known-vulnerable fixture checked against `npm audit` (89/89 identical) | ✅ |
 
 ## Architecture
 
@@ -234,8 +234,8 @@ src/depgraph/
   advisories/      OSV normalization, CVSS v3 scoring, ingestion, semver + range matcher
   findings/        match scans against advisories; re-match after each sync
 migrations/        Alembic (async), URL taken from settings
-tests/             pytest, in-process ASGI client against real services
-  fixtures/npm/    real npm-generated lockfiles (+ the package.json they came from)
+tests/             pytest (+ Hypothesis), in-process ASGI client against real services
+  fixtures/        real npm lockfiles + npm audit snapshots, real OSV records (see its README)
 ```
 
 ## Tech
