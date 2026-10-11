@@ -37,8 +37,8 @@ are planned later layers on top of it.
 | Step | State |
 |---|---|
 | OSV advisory ingestion (bulk export; 230k npm records) | ✅ |
-| Semver range matcher (incl. prereleases) | ⏳ next |
-| Incremental sync worker | planned |
+| Semver range matcher (incl. prereleases) | ✅ |
+| Incremental sync worker | ⏳ next |
 | Matching scans against advisories → findings | planned |
 | Paths to each vulnerable package | planned |
 | Fix suggestions (minimum safe version, direct vs transitive) | planned |
@@ -197,7 +197,7 @@ src/depgraph/
   lockfile/        pure package-lock.json (v2/v3) parser
   registry/        npm registry client: rate limit, retry/backoff, Redis cache
   graph/           collapse install paths to identities; bulk persist + scan lifecycle
-  advisories/      OSV normalization, CVSS v3 scoring, bulk ingestion (+ CLI)
+  advisories/      OSV normalization, CVSS v3 scoring, ingestion, semver + range matcher
 migrations/        Alembic (async), URL taken from settings
 tests/             pytest, in-process ASGI client against real services
   fixtures/npm/    real npm-generated lockfiles (+ the package.json they came from)

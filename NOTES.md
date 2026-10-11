@@ -584,3 +584,73 @@ formula gives 8.5, which the code returned.
   binary form is bigger than the text, and MAL `details` is prose). Forcing
   compression (`toast_tuple_target` plus a full rewrite) might save ~30%. At
   Cloud SQL storage prices that is cents a month, so I stopped there.
+
+## Step 2: Semver range matcher
+
+### Two pure modules
+- `advisories/semver.py`: SemVer 2.0.0 parsing and **precedence** (spec s11).
+  It uses the official regex plus npm's tolerated `v`/`=` prefixes. Comparison
+  is a precomputed key: `(major, minor, patch, release-flag, prerelease ids)`.
+  - A release sorts above all of its prereleases.
+  - Numeric identifiers sort below alphanumeric ones, numbers compare
+    numerically, and a shorter prefix sorts first.
+  - Build metadata is ignored for ordering *and* equality.
+- `advisories/matcher.py`: OSV's evaluation algorithm. Sort the events, then walk
+  them:
+  - `introduced` sets affected (if v ≥ bound, or the bound is `"0"`);
+  - `fixed` and `limit` clear it (if v ≥ bound);
+  - `last_affected` clears it (if v > bound).
+
+  An entry matches if the explicit `versions` list contains v **or** any
+  SEMVER/ECOSYSTEM range matches. GIT ranges are ignored (commit hashes can't
+  apply to registry versions).
+
+### Precedence, not npm's `satisfies()`
+node-semver's `satisfies("1.5.15-beta", "<1.5.15")` is false. npm excludes
+prereleases from ranges unless the range names that exact `major.minor.patch`.
+That is an *install policy* ("don't surprise me with a beta"). A vulnerability
+range asks a different question: is this build *ordered before the fix*? By
+precedence 1.5.15-beta < 1.5.15, so it **is** affected. OSV specifies SEMVER
+ranges by precedence. Using `satisfies` semantics would silently miss
+vulnerable prereleases.
+
+### Decisions on edge cases
+- **Events at the same version:** `introduced` sorts before `last_affected`
+  before `fixed`. So `introduced=X, fixed=X` is empty, and
+  `introduced=X, last_affected=X` is exactly `{X}`. Those are the only sensible
+  readings, and both are tested.
+- **Unparseable bounds raise `InvalidRangeError` rather than being skipped.**
+  Dropping a bad `fixed` would widen a range (false positives); dropping a bad
+  `introduced` would hide it (false negatives). The caller decides and counts.
+- **Unknown event types are ignored**, per OSV's forward-compatibility rule.
+- **Installed versions are parsed strictly.** **Advisory bounds** additionally
+  accept all-numeric shorthand (`13.0` → 13.0.0, `2026.04.1` → 2026.4.1), like
+  node-semver's `coerce`.
+
+### Found by running the matcher over the real corpus
+All 1.16M evaluations (every affected entry × 5 probe versions) were run against
+the full 230k-record export. **Every SEMVER range parsed strictly.** 165
+evaluations raised: all from the 33 ECOSYSTEM ranges and 2 versions lists, with
+bounds like `'13.0'`, `'1.3'`, `'2026.04.1'`. npm can't publish such versions,
+so they are shorthand; adding coercion for bounds took errors to **0**.
+
+### Testing: three independent angles
+1. **Hand-picked edge cases:** the spec's own precedence chain, numeric vs
+   lexical (`beta.2 < beta.11`), case order, prefixes, build metadata, >64-bit
+   numbers, inclusive/exclusive bounds, multi-interval ranges, unsorted events,
+   tie-breaks, prerelease bounds, versions-only entries, and ECOSYSTEM vs GIT.
+2. **Real advisories:** lodash, minimist (two ranges), a `last_affected` record,
+   the four-entry versions-only record, and a malicious package, each checked on
+   both sides of its boundary.
+3. **Property tests (Hypothesis):**
+   - the ordering is a strict total order and transitive;
+   - parse/str round-trips;
+   - a prerelease sorts below its release;
+   - **the event-walk agrees with an independent oracle** that builds explicit
+     `[start, end)` intervals and tests membership;
+   - a single introduced/fixed pair is exactly the half-open interval.
+
+**Mutation check:** each of 10 deliberate bugs is caught by at least one test.
+They were: fixed inclusive, last_affected exclusive, wrong tie order, release
+below prerelease, text before numeric ids, numeric ids compared as text, no event
+sort, build metadata compared, versions list ignored, ECOSYSTEM not evaluated.

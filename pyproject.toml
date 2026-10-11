@@ -46,6 +46,7 @@ markers = ["live: hits real external services; opt-in via env var"]
 
 [dependency-groups]
 dev = [
+    "hypothesis>=6.169.0",
     "pytest>=9.1.1",
     "pytest-asyncio>=1.4.0",
     "ruff>=0.17.0",
