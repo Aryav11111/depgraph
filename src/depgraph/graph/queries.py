@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from depgraph.graph.paths import Parents
+from depgraph.graph.paths import Parents, find_paths
 
 
 @dataclass(frozen=True, slots=True)
@@ -120,3 +120,50 @@ async def ancestor_parents(
     for child, parent, dep_type in rows:
         parents[child].append((parent, dep_type))
     return parents
+
+
+@dataclass(frozen=True, slots=True)
+class LabelledStep:
+    id: int
+    name: str
+    version: str | None
+    dep_type: str | None  # type of the edge into this step; None for the root
+
+
+@dataclass(frozen=True, slots=True)
+class LabelledPaths:
+    paths: list[list[LabelledStep]]
+    truncated: bool
+
+
+async def labelled_paths(
+    session: AsyncSession,
+    scan_id: uuid.UUID,
+    targets: Sequence[int],
+    *,
+    max_paths: int,
+    max_depth: int,
+    max_expansions: int,
+) -> LabelledPaths:
+    """Root -> target paths (shortest first, capped), with package names attached.
+
+    Shared by the package-paths endpoint and per-finding paths: prune to the
+    targets' ancestors in SQL, enumerate with the bounded A* search, then label
+    only the nodes that appear in returned paths.
+    """
+    if not targets:
+        return LabelledPaths([], truncated=False)
+    root = await root_node_id(session, scan_id)
+    parents = await ancestor_parents(session, scan_id, targets)
+    search = find_paths(
+        parents, root, targets,
+        max_paths=max_paths, max_depth=max_depth, max_expansions=max_expansions,
+    )  # fmt: skip
+    labels = await nodes_by_id(session, sorted({i for p in search.paths for i, _ in p}))
+    return LabelledPaths(
+        paths=[
+            [LabelledStep(i, labels[i].name, labels[i].version, t) for i, t in path]
+            for path in search.paths
+        ],
+        truncated=search.truncated,
+    )

@@ -40,8 +40,8 @@ are planned later layers on top of it.
 | Semver range matcher (incl. prereleases) | ✅ |
 | Incremental sync worker | ✅ |
 | Matching scans against advisories → findings (verified identical to `npm audit`) | ✅ |
-| Paths to each vulnerable package | ⏳ next |
-| Fix suggestions (minimum safe version, direct vs transitive) | planned |
+| Paths to each vulnerable package | ✅ |
+| Fix suggestions (minimum safe version, direct vs transitive) | ⏳ next |
 | Findings API | planned |
 
 ## Architecture

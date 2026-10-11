@@ -781,3 +781,25 @@ database, then ran `npm audit` (GitHub's advisory database) on the same lockfile
 This is an end-to-end check of the OSV export, normalization, severity, the semver
 matcher and the collapsed graph against an independent implementation. Step 8
 turns it into a regression test.
+
+## Step 5: Paths to each vulnerable package
+
+No new algorithm: the bounded A* search from stage 1 (shortest first, simple
+paths, capped, `truncated` flag) is reused with the finding's node as the target.
+
+- **Refactor first:** the path-labelling logic moved out of the `/paths`
+  endpoint into `graph.queries.labelled_paths()`, so the endpoint and findings
+  share one implementation. The existing API tests passed unchanged, which shows
+  the refactor preserved behaviour.
+- **Single finding:** every root → vulnerable-package path, capped by
+  `max_paths`/`max_depth`/expansions. Each hop carries the type of the edge *into*
+  it, so `app -[dev]-> lodash` shows at a glance that the vulnerable code is
+  dev-only.
+- **Listing:** each finding carries its **shortest** path, computed in a batch.
+  One ancestor CTE covers the union of every finding's node, then an in-memory
+  `max_paths=1` search runs per finding. Sharing the parents map is safe because
+  each search only walks up from its own target. Per-finding queries would be
+  2 round trips × N findings. A test checks that the batched result equals the
+  individual search for every finding.
+- **Paths are derived on read, never stored,** so they can't drift from the graph
+  or go stale after a re-match.

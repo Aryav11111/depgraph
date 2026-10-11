@@ -14,7 +14,6 @@ from depgraph.db.models import Scan
 from depgraph.findings.matching import match_scan
 from depgraph.graph import queries
 from depgraph.graph.builder import run_build
-from depgraph.graph.paths import find_paths
 from depgraph.lockfile.npm import LockfileError, parse_package_lock
 
 router = APIRouter(prefix="/scans", tags=["scans"])
@@ -139,25 +138,16 @@ async def get_paths(
     if not targets:
         return result
 
-    root = await queries.root_node_id(session, scan_id)
-    parents = await queries.ancestor_parents(session, scan_id, [t.id for t in targets])
-    search = find_paths(
-        parents,
-        root,
+    found = await queries.labelled_paths(
+        session,
+        scan_id,
         [t.id for t in targets],
         max_paths=max_paths,
         max_depth=max_depth,
         max_expansions=settings.paths_max_expansions,
     )
-    labels = await queries.nodes_by_id(session, sorted({i for p in search.paths for i, _ in p}))
-    result.paths = [
-        [
-            PathStep(id=i, name=labels[i].name, version=labels[i].version, dep_type=t)
-            for i, t in path
-        ]
-        for path in search.paths
-    ]
-    result.truncated = search.truncated
+    result.paths = [[PathStep.model_validate(s) for s in path] for path in found.paths]
+    result.truncated = found.truncated
     return result
 
 
