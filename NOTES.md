@@ -803,3 +803,77 @@ paths, capped, `truncated` flag) is reused with the finding's node as the target
   individual search for every finding.
 - **Paths are derived on read, never stored,** so they can't drift from the graph
   or go stale after a re-match.
+
+## Step 6: Fix suggestions
+
+### Two different semver questions, two implementations
+- **Matching** (step 2): is this version *ordered* inside the affected interval?
+  That is precedence, so 1.5.0-beta < 1.5.0 is affected.
+- **Fixing**: would *npm install* the fixed version, given these declared
+  ranges? That is npm's `satisfies()`: caret/tilde/X-ranges/hyphen ranges/`||`,
+  plus npm's prerelease policy (`^1.2.0` does not admit `1.3.0-beta`).
+
+`advisories/npm_range.py` implements the latter and passes **158 cases taken from
+node-semver's own range-include/range-exclude fixtures**. Non-semver specs (git
+URLs, `file:`, dist-tags such as `latest`) return **None, not False**, so a
+suggestion never claims a parent "blocks" a fix when we simply can't evaluate
+its spec.
+
+### Minimum fixed version: from real published versions
+It is the lowest version above the installed one that is **published on npm**
+and that **no entry of the advisory affects** (evaluated with the step 2 matcher).
+It is not read off the advisory's `fixed` events, because:
+- ranges can have several intervals and `last_affected` bounds;
+- a `fixed` version may never have been published (tested: fixed 1.2.6 when the
+  registry jumps from 1.2.5 to 1.2.8 gives 1.2.8).
+
+Prereleases are skipped for stable installs, deprecated releases are skipped
+unless nothing else fixes it, and unevaluable ranges are never recommended as
+safe. This is the stage 1 npm registry client's real consumer (Redis-cached, so
+repeat suggestions don't hit the registry). If the registry is down, it falls
+back to the advisory's own `fixed` bounds, marked `source: "advisory"`.
+
+`breaking` = the fix is outside `^installed` (caret semantics, so 0.2.x → 0.3.0
+counts as breaking).
+
+### Effort: who blocks the fix
+The vulnerable node's parents come from the scan graph, with their declared
+ranges. A parent **blocks** the fix if its range doesn't admit the fixed version
+(or can't be evaluated).
+
+| situation | action |
+|---|---|
+| nothing blocks: every declared range already admits the fix | `update_lockfile`: `npm update <pkg>`, no package.json change |
+| only package.json blocks | `bump_direct` (flags semver-major bumps) |
+| a parent package blocks | `upgrade_parent_or_override`, with the minimum parent upgrade and an `overrides` snippet |
+| no published version fixes it | `no_fix` |
+| known-malicious | `remove`, and rotate credentials (install scripts run at install) |
+
+One subtle case is tested: a package can be **both direct and pinned by a
+transitive parent**. Bumping package.json alone would leave the parent's copy
+behind, so the action is driven by *who blocks*, not by "is it direct?".
+
+### Minimum parent upgrade
+For each blocking parent, find the lowest stable, non-deprecated release newer
+than the installed one whose declared range for the vulnerable package admits
+the fix, **or that dropped the dependency**. This needs per-version dependency
+ranges, which the registry cache had been trimming away. The **cache-format
+version key (`v1` → `v2`)** from stage 1 made that a non-event: old entries are
+simply never read again, with no migration and no flush. It is deliberately
+**one level deep**: it answers "which parent release stops pinning the
+vulnerable version?". npm's full resolver is out of scope.
+
+### Verified on the real fixture (live registry) vs `npm audit`
+- Minimum fixed versions **match npm audit's vulnerable ranges exactly** (e.g.
+  esbuild `<=0.24.2` → 0.25.0, @vitest/mocker `<=4.1.10` → 4.1.11), and the
+  direct/transitive and breaking classifications agree.
+- The parent upgrades are the same parents npm audit names, but **minimal**
+  rather than latest: esbuild → **vite 6.2.0** (the release that moved to esbuild
+  ^0.25), where npm audit says vite 8.3.4; tinypool → **vitest 4.0.0**, where npm
+  audit says 5.0.3; react-router → **react-router-dom 7.18.0**.
+
+### Test mistakes caught (my premises, not the code)
+Two of my test expectations were wrong, and the code was right both times:
+- with `fixed: 4.17.22-beta.1`, 4.17.21 is still affected (it sorts below the
+  beta), so the answer is 4.17.23;
+- `~1.2.5` *does* admit 1.2.6 (`>=1.2.5 <1.3.0`).

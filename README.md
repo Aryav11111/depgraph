@@ -41,8 +41,8 @@ are planned later layers on top of it.
 | Incremental sync worker | ✅ |
 | Matching scans against advisories → findings (verified identical to `npm audit`) | ✅ |
 | Paths to each vulnerable package | ✅ |
-| Fix suggestions (minimum safe version, direct vs transitive) | ⏳ next |
-| Findings API | planned |
+| Fix suggestions (minimum safe version, direct vs transitive, parent upgrades) | ✅ |
+| Findings API | ⏳ next |
 
 ## Architecture
 

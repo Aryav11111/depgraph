@@ -422,3 +422,28 @@ async def test_token_bucket_terminates_despite_float_rounding():
         for _ in range(50):
             await bucket.acquire()
     assert len(clock.sleeps) == 49
+
+
+def test_dependencies_are_parsed_and_survive_the_cache_round_trip():
+    from depgraph.registry.npm import Packument
+
+    doc = {
+        "name": "p",
+        "versions": {
+            "1.0.0": {
+                "dependencies": {"a": "^1"},
+                "optionalDependencies": {"b": "^2"},
+                "peerDependencies": {"a": "*", "c": ">=3"},
+            }
+        },
+    }
+    p = Packument.from_registry(doc)
+    # a regular dependency wins over a same-named peer
+    assert p.versions["1.0.0"].dependencies == {"a": "^1", "b": "^2", "c": ">=3"}
+    assert Packument.from_cache(p.to_cache()) == p
+
+
+def test_cache_format_bump_ignores_old_entries():
+    from depgraph.registry import npm
+
+    assert npm.CACHE_FORMAT == "v2"  # v1 entries lack dependencies and are never read

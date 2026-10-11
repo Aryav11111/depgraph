@@ -43,7 +43,8 @@ log = structlog.get_logger(__name__)
 ABBREVIATED = "application/vnd.npm.install-v1+json; q=1.0, application/json; q=0.8, */*"
 USER_AGENT = f"depgraph/{__version__} (+https://github.com/Aryav11111/depgraph)"
 # Bump when the cached payload shape changes; old entries are then simply ignored.
-CACHE_FORMAT = "v1"
+# v2: per-version dependency ranges (for parent-upgrade fix suggestions).
+CACHE_FORMAT = "v2"
 _NOT_FOUND = b"404"
 
 
@@ -70,6 +71,9 @@ class VersionInfo:
     version: str
     integrity: str | None = None
     deprecated: str | None = None
+    # name -> declared range across dependencies, optionalDependencies and
+    # peerDependencies (a regular dependency wins if a name appears twice).
+    dependencies: Mapping[str, str] = field(default_factory=dict)
 
 
 @dataclass(frozen=True, slots=True)
@@ -85,11 +89,17 @@ class Packument:
         for ver, meta in (doc.get("versions") or {}).items():
             dist = meta.get("dist") or {}
             deprecated = meta.get("deprecated")
+            deps: dict[str, str] = {}
+            for section in ("peerDependencies", "optionalDependencies", "dependencies"):
+                for name, spec in (meta.get(section) or {}).items():
+                    if isinstance(name, str) and isinstance(spec, str):
+                        deps[name] = spec
             versions[ver] = VersionInfo(
                 version=ver,
                 integrity=dist.get("integrity"),
                 # npm uses deprecated: "" to *un*-deprecate; treat as not deprecated.
                 deprecated=deprecated if isinstance(deprecated, str) and deprecated else None,
+                dependencies=deps,
             )
         return cls(
             name=doc["name"],
@@ -103,7 +113,10 @@ class Packument:
             "name": self.name,
             "modified": self.modified,
             "dist_tags": dict(self.dist_tags),
-            "versions": {v: [i.integrity, i.deprecated] for v, i in self.versions.items()},
+            "versions": {
+                v: [i.integrity, i.deprecated, dict(i.dependencies)]
+                for v, i in self.versions.items()
+            },
         }
 
     @classmethod
@@ -113,8 +126,8 @@ class Packument:
             modified=data["modified"],
             dist_tags=data["dist_tags"],
             versions={
-                v: VersionInfo(v, integrity, deprecated)
-                for v, (integrity, deprecated) in data["versions"].items()
+                v: VersionInfo(v, integrity, deprecated, deps)
+                for v, (integrity, deprecated, deps) in data["versions"].items()
             },
         )
 
