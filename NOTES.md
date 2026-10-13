@@ -1183,3 +1183,78 @@ database faithfully.
 - the empty and reset paths work, and junk URL params cause no errors;
 - the acme sample shows 9 Dev-only badges;
 - 375 px has no horizontal scroll.
+
+## Step 4: Finding detail page
+
+`/scans/[id]/findings/[fid]` renders the existing detail endpoint:
+- a header (severity + CVSS, Malicious and Dev-only badges, package@version,
+  the advisory id linked to osv.dev, aliases, published date);
+- a **fix card** per action;
+- **every path**, shortest first;
+- the advisory details (Markdown);
+- references.
+
+### Fix card: something to act on, not just a sentence
+- `update_lockfile` gives `npm update <pkg>` with a copy button.
+- `bump_direct` gives `npm install <pkg>@^<fix>`, with a "major version change"
+  warning when the fix is outside `^installed`.
+- `upgrade_parent_or_override` gives a **blocked by / declares / upgrade to**
+  table (e.g. `mocha@8.2.1 | 5.0.1 | 12.0.0`, `vitest@2.1.9 | ^1.0.1 | 4.0.0`)
+  plus the `overrides` JSON to copy, with a note that the parent never declared
+  support for that version.
+- `no_fix` and `remove` get their own explanations.
+- The card states whether the fixed version was checked against the registry
+  or taken from the advisory (registry outage fallback).
+
+### Third-party content is untrusted (advisory text includes malware reports)
+- **Markdown** via `react-markdown` 10 (0 production vulnerabilities), stricter
+  than its defaults:
+  - an **element allowlist** (text formatting, lists, code, quotes, links), with
+    disallowed elements unwrapped to their text;
+  - `skipHtml` drops raw HTML;
+  - **no images**, so advisory authors can't plant tracking pixels;
+  - advisory `#`/`##` headings are demoted below the page's own.
+- **Links** go through `safeHttpUrl`: http(s) only, rejecting `javascript:`,
+  `data:`, protocol-relative, relative and `user@host` spoof URLs, then open with
+  `target=_blank rel="noopener noreferrer nofollow ugc"`. Unsafe links render as
+  plain text. This is on top of react-markdown's own `urlTransform`, which
+  already neutralises `javascript:`: defence in depth.
+- **Tests:** a server-side render of hostile Markdown (`<img onerror>`,
+  `<script>`, `<iframe>`, tracking image, five unsafe link forms) asserts no
+  `<img>`, no `<script>`, no `<a>` for unsafe URLs, and correct `rel`/`target`
+  on safe ones.
+- Real advisories contain proof-of-concept exploit code; it renders as inert
+  `<pre><code>` text, which is exactly what we want.
+
+### Paths
+All paths up to the server cap, shortest first, numbered. Non-prod edges are
+labelled (`legacy-api → [dev] mocha@8.2.1 → serialize-javascript@5.0.1`). The
+first 10 are shown, with a "show all N" toggle and a note when the server cap
+truncated the list.
+
+### Back link keeps the dashboard's filters
+The dashboard records its query string in `sessionStorage` (per scan, per tab,
+best-effort). The detail page reads it with **`useSyncExternalStore`**: the
+server snapshot is empty and the client snapshot is the stored value, so there
+is **no hydration mismatch** and no setState-in-effect. An invalid finding id
+is detected during render, so no effect is needed. My first draft suppressed
+React's lint rule twice; both suppressions are gone.
+
+### Cache Components keeps visited routes mounted (hidden)
+In E2E the page had three `<h1>`s. Next 16 keeps recently visited routes
+mounted inside React `<Activity mode="hidden">` (`display: none`) so back
+navigation restores state. That's not a bug, but it matters for testing
+(locators must target visible elements) and for code: effects in hidden routes
+are cleaned up and re-run when shown.
+
+### Verified (Edge, end to end)
+- dashboard (Critical) → minimist detail: `bump_direct`, the copy button really
+  copies `npm install minimist@^1.2.6`, and the back link restores
+  `?severity=CRITICAL`;
+- a transitive finding shows the blockers table and an `overrides` snippet;
+- tinypool shows `vitest@2.1.9 (^1.0.1) → 4.0.0` and the `[dev]` edge in its path;
+- references carry the safe `rel`;
+- non-numeric and unknown ids give readable errors;
+- 375 px has no horizontal scroll.
+
+Vitest gained a config only to mirror the `@/` path alias.

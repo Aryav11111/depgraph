@@ -52,8 +52,8 @@ are planned later layers on top of it.
 | Next.js app in `/web` with a typed client generated from the OpenAPI schema | ✅ |
 | Upload page (drag and drop + bundled sample lockfiles) | ✅ |
 | Findings dashboard | ✅ |
-| Finding detail: advisory, all paths, fix | ⏳ next |
-| Interactive dependency graph (React Flow) | planned |
+| Finding detail: advisory, all paths, fix | ✅ |
+| Interactive dependency graph (React Flow) | ⏳ next |
 | Loading / empty / error states, mobile | planned |
 | Deploy: Cloud Run + Vercel, rate limiting | planned |
 | Deploy on merge, live demo link + screenshot | planned |

@@ -41,3 +41,12 @@ export function getFindings(scanId: string, signal?: AbortSignal) {
     api.GET("/scans/{scan_id}/findings", { params: { path: { scan_id: scanId } }, signal }),
   );
 }
+
+export function getFinding(scanId: string, findingId: number, signal?: AbortSignal) {
+  return call(() =>
+    api.GET("/scans/{scan_id}/findings/{finding_id}", {
+      params: { path: { scan_id: scanId, finding_id: findingId } },
+      signal,
+    }),
+  );
+}

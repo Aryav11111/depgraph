@@ -1,9 +1,10 @@
 "use client";
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import type { FindingSummary, Severity } from "@/lib/api/client";
+import { rememberFilters } from "@/lib/dashboard-memory";
 import {
   applyFilters,
   type Filters,
@@ -45,6 +46,9 @@ export function FindingsDashboard({ scanId, findings, counts }: Props) {
     },
     [router, pathname],
   );
+
+  // Remember this view so a finding's "← All findings" link returns to it.
+  useEffect(() => rememberFilters(scanId, urlKey), [scanId, urlKey]);
 
   const visible = useMemo(() => applyFilters(findings, filters), [findings, filters]);
   const groups = useMemo(() => groupBySeverity(visible), [visible]);
