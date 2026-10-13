@@ -45,6 +45,19 @@ are planned later layers on top of it.
 | Findings API | ✅ |
 | Known-vulnerable fixture checked against `npm audit` (89/89 identical) | ✅ |
 
+**Stage 3: web app + public demo** (in progress)
+
+| Step | State |
+|---|---|
+| Next.js app in `/web` with a typed client generated from the OpenAPI schema | ✅ |
+| Upload page (drag and drop + bundled sample lockfiles) | ⏳ next |
+| Findings dashboard | planned |
+| Finding detail: advisory, all paths, fix | planned |
+| Interactive dependency graph (React Flow) | planned |
+| Loading / empty / error states, mobile | planned |
+| Deploy: Cloud Run + Vercel, rate limiting | planned |
+| Deploy on merge, live demo link + screenshot | planned |
+
 ## Architecture
 
 ```mermaid
@@ -147,6 +160,11 @@ OSV load (~220 MB download, about 2 minutes); after that it syncs incrementally 
 | `make revision m="..."` | autogenerate an Alembic migration |
 | `make logs` / `make down` | tail API logs / stop the stack |
 
+**Web app** (Node 20.9+): `cd web && npm ci && npm run dev`, then open http://localhost:3000.
+It talks to the API at `NEXT_PUBLIC_API_URL` (default `http://localhost:8080`, see
+[web/.env.example](web/.env.example)). After changing API models, run `make openapi` to
+re-export the schema and regenerate the frontend's types. CI fails if they drift.
+
 Prefer your host Python? Install [uv](https://docs.astral.sh/uv/), run `make install`,
 and add `LOCAL=1` to any target (e.g. `make test LOCAL=1`).
 
@@ -234,6 +252,10 @@ src/depgraph/
   advisories/      OSV normalization, CVSS v3 scoring, ingestion, semver + range matcher
   findings/        match scans against advisories; re-match after each sync
 migrations/        Alembic (async), URL taken from settings
+web/               Next.js (App Router) + TypeScript + Tailwind frontend
+  openapi.json     API schema snapshot (generated: make openapi)
+  src/lib/api/     typed client: schema.d.ts generated from openapi.json
+scripts/           OpenAPI export, fixture refresh, make help
 tests/             pytest (+ Hypothesis), in-process ASGI client against real services
   fixtures/        real npm lockfiles + npm audit snapshots, real OSV records (see its README)
 ```

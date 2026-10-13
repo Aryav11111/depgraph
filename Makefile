@@ -11,7 +11,7 @@ RUN := docker compose run --rm --build dev
 endif
 
 .DEFAULT_GOAL := help
-.PHONY: help install up down logs migrate revision test lint fmt check
+.PHONY: help install up down logs migrate revision test lint fmt check openapi web
 
 help:  ## List targets
 	@$(RUN) python scripts/make_help.py
@@ -46,3 +46,10 @@ fmt:  ## Auto-fix lint issues and format
 	$(RUN) ruff format .
 
 check: lint test  ## Everything CI runs
+
+openapi:  ## Export the API schema to web/openapi.json and regenerate web types
+	$(RUN) python scripts/export_openapi.py
+	cd web && npm run gen:api
+
+web:  ## Run the web app dev server on :3000 (needs `make up` for the API)
+	cd web && npm run dev

@@ -1,0 +1,1512 @@
+{
+  "components": {
+    "schemas": {
+      "AdvisoryDetail": {
+        "properties": {
+          "aliases": {
+            "description": "CVE / other GHSA ids",
+            "items": {
+              "type": "string"
+            },
+            "title": "Aliases",
+            "type": "array"
+          },
+          "cvss_v3_score": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cvss V3 Score"
+          },
+          "cvss_v3_vector": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cvss V3 Vector"
+          },
+          "cvss_v4_vector": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cvss V4 Vector"
+          },
+          "details": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Details"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "vulnerability",
+              "malicious"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "modified": {
+            "format": "date-time",
+            "title": "Modified",
+            "type": "string"
+          },
+          "published": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Published"
+          },
+          "references": {
+            "items": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "title": "References",
+            "type": "array"
+          },
+          "severity": {
+            "enum": [
+              "CRITICAL",
+              "HIGH",
+              "MODERATE",
+              "LOW",
+              "UNKNOWN"
+            ],
+            "title": "Severity",
+            "type": "string"
+          },
+          "summary": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Summary"
+          },
+          "url": {
+            "description": "Human-readable advisory page on osv.dev",
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "severity",
+          "cvss_v3_score",
+          "summary",
+          "aliases",
+          "published",
+          "url",
+          "details",
+          "cvss_v3_vector",
+          "cvss_v4_vector",
+          "modified",
+          "references"
+        ],
+        "title": "AdvisoryDetail",
+        "type": "object"
+      },
+      "AdvisoryRef": {
+        "properties": {
+          "aliases": {
+            "description": "CVE / other GHSA ids",
+            "items": {
+              "type": "string"
+            },
+            "title": "Aliases",
+            "type": "array"
+          },
+          "cvss_v3_score": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cvss V3 Score"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "vulnerability",
+              "malicious"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "published": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Published"
+          },
+          "severity": {
+            "enum": [
+              "CRITICAL",
+              "HIGH",
+              "MODERATE",
+              "LOW",
+              "UNKNOWN"
+            ],
+            "title": "Severity",
+            "type": "string"
+          },
+          "summary": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Summary"
+          },
+          "url": {
+            "description": "Human-readable advisory page on osv.dev",
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "severity",
+          "cvss_v3_score",
+          "summary",
+          "aliases",
+          "published",
+          "url"
+        ],
+        "title": "AdvisoryRef",
+        "type": "object"
+      },
+      "EdgeOut": {
+        "properties": {
+          "child": {
+            "title": "Child",
+            "type": "integer"
+          },
+          "declared_range": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Declared Range"
+          },
+          "dep_type": {
+            "title": "Dep Type",
+            "type": "string"
+          },
+          "parent": {
+            "title": "Parent",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "parent",
+          "child",
+          "dep_type",
+          "declared_range"
+        ],
+        "title": "EdgeOut",
+        "type": "object"
+      },
+      "FindingDetail": {
+        "properties": {
+          "advisory": {
+            "$ref": "#/components/schemas/AdvisoryDetail"
+          },
+          "dev_only": {
+            "title": "Dev Only",
+            "type": "boolean"
+          },
+          "first_detected": {
+            "format": "date-time",
+            "title": "First Detected",
+            "type": "string"
+          },
+          "fix": {
+            "$ref": "#/components/schemas/FixOut"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "last_confirmed": {
+            "format": "date-time",
+            "title": "Last Confirmed",
+            "type": "string"
+          },
+          "package": {
+            "title": "Package",
+            "type": "string"
+          },
+          "paths": {
+            "description": "Root-to-package paths, shortest first",
+            "items": {
+              "items": {
+                "$ref": "#/components/schemas/PathStep"
+              },
+              "type": "array"
+            },
+            "title": "Paths",
+            "type": "array"
+          },
+          "paths_truncated": {
+            "title": "Paths Truncated",
+            "type": "boolean"
+          },
+          "scan_id": {
+            "format": "uuid",
+            "title": "Scan Id",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "scan_id",
+          "package",
+          "version",
+          "dev_only",
+          "advisory",
+          "first_detected",
+          "last_confirmed",
+          "paths",
+          "paths_truncated",
+          "fix"
+        ],
+        "title": "FindingDetail",
+        "type": "object"
+      },
+      "FindingSummary": {
+        "properties": {
+          "advisory": {
+            "$ref": "#/components/schemas/AdvisoryRef"
+          },
+          "dev_only": {
+            "description": "Only reachable via devDependencies: not in prod installs",
+            "title": "Dev Only",
+            "type": "boolean"
+          },
+          "direct": {
+            "description": "The project depends on this package directly",
+            "title": "Direct",
+            "type": "boolean"
+          },
+          "first_detected": {
+            "format": "date-time",
+            "title": "First Detected",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "last_confirmed": {
+            "format": "date-time",
+            "title": "Last Confirmed",
+            "type": "string"
+          },
+          "package": {
+            "title": "Package",
+            "type": "string"
+          },
+          "shortest_path": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/PathStep"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Shortest root-to-package path; null if unreachable within caps",
+            "title": "Shortest Path"
+          },
+          "version": {
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "package",
+          "version",
+          "advisory",
+          "direct",
+          "dev_only",
+          "shortest_path",
+          "first_detected",
+          "last_confirmed"
+        ],
+        "title": "FindingSummary",
+        "type": "object"
+      },
+      "FindingsOut": {
+        "properties": {
+          "counts": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "description": "Findings per severity, before filtering",
+            "propertyNames": {
+              "enum": [
+                "CRITICAL",
+                "HIGH",
+                "MODERATE",
+                "LOW",
+                "UNKNOWN"
+              ]
+            },
+            "title": "Counts",
+            "type": "object"
+          },
+          "findings": {
+            "items": {
+              "$ref": "#/components/schemas/FindingSummary"
+            },
+            "title": "Findings",
+            "type": "array"
+          },
+          "matched_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When findings were last computed for this scan; null: not yet",
+            "title": "Matched At"
+          },
+          "scan_id": {
+            "format": "uuid",
+            "title": "Scan Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "scan_id",
+          "matched_at",
+          "counts",
+          "findings"
+        ],
+        "title": "FindingsOut",
+        "type": "object"
+      },
+      "FixOut": {
+        "properties": {
+          "action": {
+            "enum": [
+              "update_lockfile",
+              "bump_direct",
+              "upgrade_parent_or_override",
+              "no_fix",
+              "remove"
+            ],
+            "title": "Action",
+            "type": "string"
+          },
+          "breaking": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Fix is a semver-major change from installed",
+            "title": "Breaking"
+          },
+          "direct": {
+            "title": "Direct",
+            "type": "boolean"
+          },
+          "fixed_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fixed Version"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "overrides": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Snippet for the package.json overrides field",
+            "title": "Overrides",
+            "type": "object"
+          },
+          "parents": {
+            "items": {
+              "$ref": "#/components/schemas/ParentOut"
+            },
+            "title": "Parents",
+            "type": "array"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "enum": [
+                  "registry",
+                  "advisory"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source"
+          }
+        },
+        "required": [
+          "fixed_version",
+          "source",
+          "breaking",
+          "direct",
+          "action",
+          "parents",
+          "message",
+          "overrides"
+        ],
+        "title": "FixOut",
+        "type": "object"
+      },
+      "GraphOut": {
+        "properties": {
+          "edges": {
+            "items": {
+              "$ref": "#/components/schemas/EdgeOut"
+            },
+            "title": "Edges",
+            "type": "array"
+          },
+          "nodes": {
+            "items": {
+              "$ref": "#/components/schemas/NodeOut"
+            },
+            "title": "Nodes",
+            "type": "array"
+          },
+          "root": {
+            "title": "Root",
+            "type": "integer"
+          },
+          "scan": {
+            "$ref": "#/components/schemas/ScanOut"
+          }
+        },
+        "required": [
+          "scan",
+          "root",
+          "nodes",
+          "edges"
+        ],
+        "title": "GraphOut",
+        "type": "object"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "title": "Detail",
+            "type": "array"
+          }
+        },
+        "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "NodeOut": {
+        "properties": {
+          "dev": {
+            "title": "Dev",
+            "type": "boolean"
+          },
+          "dev_optional": {
+            "title": "Dev Optional",
+            "type": "boolean"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "install_paths": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Install Paths",
+            "type": "array"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "optional": {
+            "title": "Optional",
+            "type": "boolean"
+          },
+          "peer": {
+            "title": "Peer",
+            "type": "boolean"
+          },
+          "ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Path or URL for non-registry packages",
+            "title": "Ref"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          },
+          "version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Version"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "version",
+          "source",
+          "ref",
+          "dev",
+          "optional",
+          "dev_optional",
+          "peer",
+          "install_paths"
+        ],
+        "title": "NodeOut",
+        "type": "object"
+      },
+      "ParentOut": {
+        "properties": {
+          "allows_fix": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Declared range admits the fix; null: unknown",
+            "title": "Allows Fix"
+          },
+          "declared_range": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Declared Range"
+          },
+          "dep_type": {
+            "title": "Dep Type",
+            "type": "string"
+          },
+          "is_root": {
+            "title": "Is Root",
+            "type": "boolean"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "upgrade_to": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Lowest release of this parent that admits it",
+            "title": "Upgrade To"
+          },
+          "version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Version"
+          }
+        },
+        "required": [
+          "name",
+          "version",
+          "is_root",
+          "dep_type",
+          "declared_range",
+          "allows_fix",
+          "upgrade_to"
+        ],
+        "title": "ParentOut",
+        "type": "object"
+      },
+      "PathStep": {
+        "properties": {
+          "dep_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Type of the edge into this node; null for root",
+            "title": "Dep Type"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Version"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "version",
+          "dep_type"
+        ],
+        "title": "PathStep",
+        "type": "object"
+      },
+      "PathsOut": {
+        "properties": {
+          "max_depth": {
+            "title": "Max Depth",
+            "type": "integer"
+          },
+          "max_paths": {
+            "title": "Max Paths",
+            "type": "integer"
+          },
+          "package": {
+            "title": "Package",
+            "type": "string"
+          },
+          "paths": {
+            "description": "Root-to-target paths, shortest first",
+            "items": {
+              "items": {
+                "$ref": "#/components/schemas/PathStep"
+              },
+              "type": "array"
+            },
+            "title": "Paths",
+            "type": "array"
+          },
+          "targets": {
+            "description": "Nodes in the scan matching the query",
+            "items": {
+              "$ref": "#/components/schemas/NodeOut"
+            },
+            "title": "Targets",
+            "type": "array"
+          },
+          "truncated": {
+            "description": "A cap was hit; more paths may exist",
+            "title": "Truncated",
+            "type": "boolean"
+          },
+          "version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Version"
+          }
+        },
+        "required": [
+          "package",
+          "version",
+          "targets",
+          "paths",
+          "truncated",
+          "max_paths",
+          "max_depth"
+        ],
+        "title": "PathsOut",
+        "type": "object"
+      },
+      "ScanOut": {
+        "properties": {
+          "completed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completed At"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "edge_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Edge Count"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "lockfile_sha256": {
+            "title": "Lockfile Sha256",
+            "type": "string"
+          },
+          "lockfile_version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lockfile Version"
+          },
+          "node_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Node Count"
+          },
+          "root_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Root Name"
+          },
+          "status": {
+            "enum": [
+              "pending",
+              "processing",
+              "completed",
+              "failed"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "warnings": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Warnings",
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "status",
+          "lockfile_sha256",
+          "lockfile_version",
+          "root_name",
+          "node_count",
+          "edge_count",
+          "warnings",
+          "error",
+          "created_at",
+          "completed_at"
+        ],
+        "title": "ScanOut",
+        "type": "object"
+      },
+      "ValidationError": {
+        "properties": {
+          "ctx": {
+            "title": "Context",
+            "type": "object"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "title": "Location",
+            "type": "array"
+          },
+          "msg": {
+            "title": "Message",
+            "type": "string"
+          },
+          "type": {
+            "title": "Error Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError",
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "title": "depgraph",
+    "version": "0.1.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/health": {
+      "get": {
+        "operationId": "health_health_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "title": "Response Health Health Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Health",
+        "tags": [
+          "health"
+        ]
+      }
+    },
+    "/health/ready": {
+      "get": {
+        "operationId": "ready_health_ready_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Ready Health Ready Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Ready",
+        "tags": [
+          "health"
+        ]
+      }
+    },
+    "/scans": {
+      "post": {
+        "description": "Upload a package-lock.json; it is parsed, resolved and stored synchronously.",
+        "operationId": "create_scan_scans_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "description": "The raw contents of package-lock.json (lockfileVersion 2 or 3).",
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScanOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "413": {
+            "description": "Lockfile too large"
+          },
+          "422": {
+            "description": "Bad lockfile"
+          }
+        },
+        "summary": "Create Scan",
+        "tags": [
+          "scans"
+        ]
+      }
+    },
+    "/scans/{scan_id}": {
+      "get": {
+        "operationId": "get_scan_scans__scan_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "scan_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Scan Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScanOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Scan",
+        "tags": [
+          "scans"
+        ]
+      }
+    },
+    "/scans/{scan_id}/findings": {
+      "get": {
+        "description": "Every finding in the scan, most severe first, each with its shortest path.",
+        "operationId": "get_findings_scans__scan_id__findings_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "scan_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Scan Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Only these severities (repeatable)",
+            "in": "query",
+            "name": "severity",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "enum": [
+                      "CRITICAL",
+                      "HIGH",
+                      "MODERATE",
+                      "LOW",
+                      "UNKNOWN"
+                    ],
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only these severities (repeatable)",
+              "title": "Severity"
+            }
+          },
+          {
+            "description": "This severity or worse",
+            "in": "query",
+            "name": "min_severity",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "CRITICAL",
+                    "HIGH",
+                    "MODERATE",
+                    "LOW",
+                    "UNKNOWN"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "This severity or worse",
+              "title": "Min Severity"
+            }
+          },
+          {
+            "description": "vulnerability and/or malicious",
+            "in": "query",
+            "name": "kind",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "enum": [
+                      "vulnerability",
+                      "malicious"
+                    ],
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "vulnerability and/or malicious",
+              "title": "Kind"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FindingsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Findings",
+        "tags": [
+          "findings"
+        ]
+      }
+    },
+    "/scans/{scan_id}/findings/{finding_id}": {
+      "get": {
+        "description": "One finding: the advisory, every dependency path to it, and how to fix it.",
+        "operationId": "get_finding_detail_scans__scan_id__findings__finding_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "scan_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Scan Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "finding_id",
+            "required": true,
+            "schema": {
+              "title": "Finding Id",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Cap on paths returned",
+            "in": "query",
+            "name": "max_paths",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Cap on paths returned",
+              "title": "Max Paths"
+            }
+          },
+          {
+            "description": "Cap on path length",
+            "in": "query",
+            "name": "max_depth",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Cap on path length",
+              "title": "Max Depth"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FindingDetail"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Finding Detail",
+        "tags": [
+          "findings"
+        ]
+      }
+    },
+    "/scans/{scan_id}/graph": {
+      "get": {
+        "description": "The full resolved graph: every package node and dependency edge.",
+        "operationId": "get_graph_scans__scan_id__graph_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "scan_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Scan Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GraphOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Graph",
+        "tags": [
+          "scans"
+        ]
+      }
+    },
+    "/scans/{scan_id}/paths": {
+      "get": {
+        "description": "Every dependency path from the project root to `package`, shortest first.",
+        "operationId": "get_paths_scans__scan_id__paths_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "scan_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Scan Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Package name",
+            "in": "query",
+            "name": "package",
+            "required": true,
+            "schema": {
+              "description": "Package name",
+              "maxLength": 214,
+              "minLength": 1,
+              "title": "Package",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Exact version",
+            "in": "query",
+            "name": "version",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 256,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Exact version",
+              "title": "Version"
+            }
+          },
+          {
+            "description": "Cap on paths returned",
+            "in": "query",
+            "name": "max_paths",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Cap on paths returned",
+              "title": "Max Paths"
+            }
+          },
+          {
+            "description": "Cap on path length",
+            "in": "query",
+            "name": "max_depth",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Cap on path length",
+              "title": "Max Depth"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PathsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Paths",
+        "tags": [
+          "scans"
+        ]
+      }
+    }
+  }
+}

@@ -953,3 +953,93 @@ before the offline fixtures existed, and gave the same 89/89.
 If npm audit is re-run later than the OSV subset was taken, a newly published
 advisory appears on one side only, and the test fails for reasons unrelated to
 our code. Regenerating both together keeps it a test of *logic*, not of timing.
+
+---
+
+# Stage 3: Web app and public demo
+
+## Deployment decision (made before any code, recorded here)
+This is **Option B, targeting about $0/month.** Postgres runs in Docker on GCP's
+always-free `e2-micro` VM, with no public IPv4 (in-use IPv4 is billed). Cloud Run
+reaches it over Direct VPC egress. There is **no Redis in production**: the
+registry cache already degrades gracefully, and rate limiting can live in
+Postgres. The API runs on Cloud Run (scale to zero), the advisory sync as a
+Cloud Run Job triggered by Cloud Scheduler, and the frontend on Vercel Hobby.
+
+The rejected alternative was Cloud SQL `db-f1-micro`, at about $10/month: managed
+backups and patching, but over budget. Memorystore (about $25–35+/month) was out
+of budget. **Nothing has been provisioned yet;** costs are re-confirmed before
+step 7 creates anything.
+
+## Step 1: Next.js app and typed API client
+
+### Stack as installed (version-matched docs read first)
+`create-next-app` installed **Next.js 16.4 / React 19.3**, newer than my training
+data. Its generated `AGENTS.md` points to the docs bundled in
+`node_modules/next/dist/docs`, which I read before writing code. Relevant changes:
+- **Turbopack** is the default bundler.
+- `next lint` is gone (ESLint CLI instead).
+- **Cache Components** is enabled by default: uncached request-time data outside
+  `<Suspense>` fails the build.
+- `NEXT_PUBLIC_*` variables are inlined at build time.
+
+Scan pages show per-user dynamic data, so they fetch from the browser. That suits
+the direct-to-API design below and stays out of Cache Components' way.
+
+### Typed API client: generated types plus a thin fetch wrapper
+- `scripts/export_openapi.py` writes FastAPI's schema to `web/openapi.json`
+  without a server or database. It is committed, so the web app builds without
+  the backend.
+- `openapi-typescript` generates `src/lib/api/schema.d.ts` from it: types only,
+  no runtime code.
+- `openapi-fetch` (~6 KB) type-checks every path, parameter and response body
+  against those types. A renamed backend field breaks the frontend **at compile
+  time**.
+- **Drift checks in CI:** `export_openapi.py --check` fails if the committed
+  schema doesn't match the API, and the web job fails if the regenerated types
+  differ from the committed ones. This is the same idea as `alembic check`.
+- *Rejected:* full client generators (orval, openapi-generator), which produce a
+  lot of generated code to maintain for no gain here.
+
+### Browser → API directly, so CORS is needed
+A Next.js/Vercel proxy would avoid CORS, but Vercel caps proxied request bodies at
+~4.5 MB, smaller than real lockfiles. So the browser calls the API itself.
+`CORSMiddleware` allows **exact origins only** (`CORS_ORIGINS`, a JSON list in the
+env var, defaulting to `http://localhost:3000`), GET/POST only, and **no
+credentials**, since there are no cookies or auth. `Location` and `X-Request-ID`
+are exposed. Tests cover the allowed origin, a foreign origin, and env parsing.
+
+### Verified in a real browser
+I served the production build (`next start`) and loaded it in headless Microsoft
+Edge, which runs the JavaScript and performs the real cross-origin fetch. The
+rendered DOM shows **"API ready (postgres: ok, redis: ok)"**. CORS headers were also
+checked with curl: the frontend origin gets `access-control-allow-origin`, a
+foreign origin gets nothing.
+
+### The scaffold had 5 "high" npm audit findings: assessed, accepted
+All five are **one advisory**, braces GHSA-vfj7-8cjw-p6xm (stack-exhaustion DoS
+from deeply nested glob patterns):
+- **no fixed version** of `braces` exists;
+- it is reached **only via `eslint-config-next`**, a dev-time lint tool that
+  globs our own patterns, never user input, and never ships to the browser;
+- npm's suggested fix is downgrading `eslint-config-next` to 14.2.35, two majors
+  back, which is worse than the issue.
+
+Accepted and documented. **Dogfooding:** uploading `web/package-lock.json` to
+depgraph itself gave the same conclusion independently: one HIGH finding,
+`braces`, `dev_only=true`, path `web > eslint-config-next[dev] > … > braces`,
+fix `no_fix`. npm audit counts 5 because it also lists every parent in the chain.
+
+### Local environment issue found (not a repo change)
+npm failed with `spawn C:\Program Files\PostgreSQL\18\bin ENOENT`. The Windows
+**user-level `ComSpec` variable was set to the PostgreSQL `bin` folder** (probably
+meant for `Path`). npm runs scripts through `ComSpec`. I worked around it per
+command (`COMSPEC=C:\WINDOWS\system32\cmd.exe`) and left the system setting to the
+owner.
+
+### npm 11 install-script policy
+npm 11 no longer runs dependency install scripts unless approved
+(`allowScripts`). It skipped `unrs-resolver`'s postinstall, an optional native
+speed-up for ESLint's import resolver; lint works without it. I left it
+unapproved rather than approving scripts blindly, which is the supply-chain
+hygiene this project is about.

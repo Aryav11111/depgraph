@@ -30,6 +30,10 @@ class Settings(BaseSettings):
 
     redis_url: SecretStr = Field(default=SecretStr("redis://localhost:6379/0"))
 
+    # Browser origins allowed to call the API (the web frontend). A JSON list
+    # in the env var, e.g. CORS_ORIGINS='["https://depgraph.vercel.app"]'
+    cors_origins: list[str] = ["http://localhost:3000"]
+
     # API limits.
     max_lockfile_bytes: int = 25 * 1024 * 1024
     paths_default_max: int = 100

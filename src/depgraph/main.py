@@ -5,6 +5,7 @@ from contextlib import asynccontextmanager
 
 import structlog
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from redis.asyncio import Redis
 
 from depgraph import __version__
@@ -45,6 +46,18 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app = FastAPI(title="depgraph", version=__version__, lifespan=lifespan)
     app.state.settings = settings
     app.add_middleware(RequestContextMiddleware)
+    # The frontend calls the API straight from the browser (not via a proxy:
+    # Vercel caps proxied request bodies at ~4.5 MB, below real lockfile sizes).
+    # Exact origins only, no credentials: there are no cookies or auth to share.
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=settings.cors_origins,
+        allow_methods=["GET", "POST"],
+        allow_headers=["Content-Type", "X-Request-ID"],
+        expose_headers=["X-Request-ID", "Location"],
+        allow_credentials=False,
+        max_age=600,
+    )
     app.include_router(health.router)
     app.include_router(scans.router)
     app.include_router(findings.router)

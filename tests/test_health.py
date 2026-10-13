@@ -34,3 +34,23 @@ async def test_request_id_is_generated_and_echoed(client):
 async def test_incoming_request_id_is_propagated(client):
     resp = await client.get("/health", headers={"X-Request-ID": "trace-abc"})
     assert resp.headers["x-request-id"] == "trace-abc"
+
+
+async def test_cors_allows_the_configured_frontend_origin(client):
+    resp = await client.options(
+        "/scans",
+        headers={"Origin": "http://localhost:3000", "Access-Control-Request-Method": "POST"},
+    )
+    assert resp.status_code == 200
+    assert resp.headers["access-control-allow-origin"] == "http://localhost:3000"
+    assert "access-control-allow-credentials" not in resp.headers
+
+
+async def test_cors_rejects_other_origins(client):
+    resp = await client.get("/health", headers={"Origin": "https://evil.example"})
+    assert "access-control-allow-origin" not in resp.headers
+
+
+def test_cors_origins_from_json_list_env(monkeypatch):
+    monkeypatch.setenv("CORS_ORIGINS", '["https://a.example","https://b.example"]')
+    assert Settings(_env_file=None).cors_origins == ["https://a.example", "https://b.example"]
