@@ -96,6 +96,10 @@ class FindingSummary(BaseModel):
     advisory: AdvisoryRef
     direct: bool = Field(description="The project depends on this package directly")
     dev_only: bool = Field(description="Only reachable via devDependencies: not in prod installs")
+    fixed_version_hint: str | None = Field(
+        description="Lowest fixed version named by the advisory (no registry check). The"
+        " finding detail's fix.fixed_version is authoritative; null: no fix known"
+    )
     shortest_path: list[PathStep] | None = Field(
         description="Shortest root-to-package path; null if unreachable within caps"
     )

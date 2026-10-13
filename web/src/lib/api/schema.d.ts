@@ -300,6 +300,11 @@ export interface components {
              * Format: date-time
              */
             first_detected: string;
+            /**
+             * Fixed Version Hint
+             * @description Lowest fixed version named by the advisory (no registry check). The finding detail's fix.fixed_version is authoritative; null: no fix known
+             */
+            fixed_version_hint: string | null;
             /** Id */
             id: number;
             /**

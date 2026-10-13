@@ -51,8 +51,8 @@ are planned later layers on top of it.
 |---|---|
 | Next.js app in `/web` with a typed client generated from the OpenAPI schema | ✅ |
 | Upload page (drag and drop + bundled sample lockfiles) | ✅ |
-| Findings dashboard | ⏳ next |
-| Finding detail: advisory, all paths, fix | planned |
+| Findings dashboard | ✅ |
+| Finding detail: advisory, all paths, fix | ⏳ next |
 | Interactive dependency graph (React Flow) | planned |
 | Loading / empty / error states, mobile | planned |
 | Deploy: Cloud Run + Vercel, rate limiting | planned |
@@ -180,7 +180,7 @@ Interactive docs are served at `/docs` (OpenAPI).
 | `GET` | `/scans/{id}` | Scan status, counts and warnings (e.g. unresolved dependencies, integrity mismatches). |
 | `GET` | `/scans/{id}/graph` | The full resolved graph: every package node and dependency edge. |
 | `GET` | `/scans/{id}/paths?package=&version=&max_paths=&max_depth=` | Every dependency path from the project root to a package, shortest first, capped (`truncated` says if a cap was hit). |
-| `GET` | `/scans/{id}/findings?severity=&min_severity=&kind=` | Vulnerable and malicious packages in the scan, most severe first, each with its shortest dependency path, `direct` and `dev_only` flags, and counts per severity. |
+| `GET` | `/scans/{id}/findings?severity=&min_severity=&kind=` | Vulnerable and malicious packages in the scan, most severe first, each with its shortest dependency path, `direct` and `dev_only` flags, an offline `fixed_version_hint`, and counts per severity. |
 | `GET` | `/scans/{id}/findings/{finding_id}?max_paths=&max_depth=` | One finding: the advisory (details, CVSS, aliases, references), **every** path to the package (shortest first, capped), and a **fix suggestion**. |
 | `GET` | `/health` | Liveness: the process is up. Never touches dependencies. |
 | `GET` | `/health/ready` | Readiness: Postgres and Redis respond. Returns `503` with per-check detail otherwise. |

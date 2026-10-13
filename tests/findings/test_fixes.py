@@ -8,6 +8,7 @@ from depgraph.findings.fixes import (
     Action,
     Parent,
     ParentRelease,
+    advisory_fix_hint,
     fix_for_finding,
     minimum_parent_upgrade,
     suggest_fix,
@@ -307,3 +308,35 @@ def test_suggestion_names_the_parent_upgrade():
     )  # fmt: skip
     assert f.parents[0].upgrade_to == "0.5.6"
     assert "Upgrade mkdirp to 0.5.6" in f.message
+
+
+# ------------------------------------------------------------- list hints
+
+
+@pytest.mark.parametrize(
+    ("installed", "entries", "expected"),
+    [
+        ("4.17.20", LODASH, "4.17.21"),
+        ("4.17.20", rng({"introduced": "0"}), None),  # never fixed
+        ("1.2.0", rng({"introduced": "0"}, {"last_affected": "1.2.0"}), None),  # no `fixed` named
+        # Two separate ranges (ORed): 1.5.0 fixes the first but is inside the second,
+        # so the hint skips to 2.0.0. (Within *one* range, fixed=X + introduced=X
+        # resolves to fixed by the matcher's documented tie-break.)
+        (
+            "1.2.0",
+            [
+                {
+                    "ranges": [
+                        {"type": "SEMVER", "events": [{"introduced": "1.0.0"}, {"fixed": "1.5.0"}]},
+                        {"type": "SEMVER", "events": [{"introduced": "1.5.0"}, {"fixed": "2.0.0"}]},
+                    ],
+                    "versions": [],
+                }
+            ],
+            "2.0.0",
+        ),
+        ("not-semver", LODASH, None),
+    ],
+)
+def test_advisory_fix_hint(installed, entries, expected):
+    assert advisory_fix_hint(installed, entries) == expected

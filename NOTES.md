@@ -1119,3 +1119,67 @@ repo for now; Playwright joins the repo in step 6):
 Production has **no Redis** (Option B), but `/health/ready` reports Redis as a
 required check, so the live site would show "degraded". Readiness must treat
 Redis as optional when it isn't configured.
+
+## Step 3: Findings dashboard
+
+### Layout
+Findings are grouped by severity (Critical → Low, in the API's CVSS-then-name
+order within a group). Each row shows `package installed → fix`,
+Direct/Transitive, Dev-only, Malicious, the advisory summary, the CVE (or
+advisory id) with its CVSS score, and the shortest path (middle-truncated past
+5 hops, with non-prod edges labelled). Each row links to the finding detail.
+Colour is always paired with a text label, never colour alone.
+
+### Backend addition: `fixed_version_hint` in the list
+The authoritative fixed version (detail endpoint) checks the npm registry, so
+showing it on every row would mean tens of registry calls per page view.
+Instead, the list carries a **hint**: the advisory's own `fixed` bounds,
+evaluated with the same matcher and the registry turned off. All findings'
+entries are fetched in **one** query (`unnest` over the (advisory, package)
+pairs). It is labelled "fixed in". The detail page stays authoritative, because
+a `fixed` version may never have been published. Malicious rows say "remove"
+instead.
+
+### Filters: client-side, mirrored in the URL
+Severity (multi-select chips with counts), kind, reach, "hide dev-only" and a
+search (package, advisory id, CVE alias, summary). Scans have at most a few
+hundred findings, so filtering in the browser is instant and needs no extra API
+calls.
+- **The URL holds the filters** (`?severity=CRITICAL&hide_dev=1&q=…`), so views
+  survive reloads and can be shared. Parsing treats URLs as **untrusted**:
+  unknown values fall back to defaults, and the query is capped at 100
+  characters (unit-tested with `<script>` and junk values).
+- **Bug found by the E2E test:** with the URL as the *only* source of truth, a
+  clicked checkbox snapped back, because `router.replace` commits as a
+  transition. Filters now apply from local state immediately and sync to the URL
+  in the background. URL changes made elsewhere (back button, pasted link) are
+  adopted by adjusting state during render. React's linter rejects
+  setState-in-effect for this, which is right.
+- The search box debounces (250 ms) before writing the URL, so typing doesn't
+  rewrite history on every keystroke.
+
+### Real-data observation (flagged, not "fixed")
+Two GitHub advisories, GHSA-35jh-r3h4-6jhm and GHSA-r5fr-rjxr-66jc, alias each
+other and the same CVE-2021-23337. Both appear as rows, and npm audit lists both
+too, which is part of the exact 89/89 match. Merging aliased advisories into one
+row is a product decision; for now the dashboard mirrors the advisory
+database faithfully.
+
+### States
+- loading: a skeleton;
+- error: a readable message and a link home;
+- a scan that isn't completed: its status/error;
+- **no findings**: a positive empty state that notes new advisories are matched
+  automatically;
+- **filters hide everything**: an inline reset.
+
+### Verified (Edge, end to end)
+- 89 findings in 4 groups;
+- a row shows `4.17.20 → 4.17.21` / Direct / CVE-2021-23337 / CVSS 7.2;
+- the Critical filter gives 6 and writes `?severity=CRITICAL`, which survives a
+  reload;
+- a CVE search gives 2 (the alias pair above);
+- hiding dev-only gives 68;
+- the empty and reset paths work, and junk URL params cause no errors;
+- the acme sample shows 9 Dev-only badges;
+- 375 px has no horizontal scroll.

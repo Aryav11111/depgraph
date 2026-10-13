@@ -352,6 +352,18 @@
             "title": "First Detected",
             "type": "string"
           },
+          "fixed_version_hint": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Lowest fixed version named by the advisory (no registry check). The finding detail's fix.fixed_version is authoritative; null: no fix known",
+            "title": "Fixed Version Hint"
+          },
           "id": {
             "title": "Id",
             "type": "integer"
@@ -392,6 +404,7 @@
           "advisory",
           "direct",
           "dev_only",
+          "fixed_version_hint",
           "shortest_path",
           "first_detected",
           "last_confirmed"

@@ -106,6 +106,13 @@ async def test_summary_fields(api):
     assert "left-pad" not in findings
 
 
+async def test_list_carries_offline_fix_hints(api):
+    findings = {f["package"]: f for f in (await api.get(url(api))).json()["findings"]}
+    assert findings["lodash"]["fixed_version_hint"] == "4.17.21"
+    assert findings["minimist"]["fixed_version_hint"] == "1.2.6"
+    assert findings["tostpro"]["fixed_version_hint"] is None  # malicious: every version listed
+
+
 async def test_dev_only_findings_are_flagged(api):
     dev = lock(
         {"node_modules/lodash": pkg("lodash", "4.17.20", dev=True)},

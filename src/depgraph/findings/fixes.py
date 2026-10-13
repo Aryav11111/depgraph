@@ -340,3 +340,45 @@ async def _parents(session: AsyncSession, scan_id: uuid.UUID, node_id: int) -> l
         )
         for pid, dep_type, declared in rows
     ]
+
+
+# ------------------------------------------------------------- list hints
+
+
+def advisory_fix_hint(installed: str, entries: Sequence[Mapping[str, Any]]) -> str | None:
+    """Lowest version above `installed` that the advisory's own `fixed` bounds name
+    and that no entry affects, with no registry lookup.
+
+    Cheap enough for every row of a findings list. It's a *hint*: if that version
+    was never published, the authoritative answer (detail endpoint, which checks the
+    registry) is the next published safe release.
+    """
+    try:
+        fixed, _ = _minimum_fix(Version.parse(installed), entries, None)
+    except InvalidVersionError:
+        return None
+    return str(fixed) if fixed else None
+
+
+async def fix_hints(session: AsyncSession, findings: Sequence[FindingRow]) -> dict[int, str | None]:
+    """`advisory_fix_hint` for many findings, with one query for all their entries."""
+    pairs = sorted({(f.advisory_id, f.package) for f in findings})
+    if not pairs:
+        return {}
+    rows = await session.execute(
+        text(
+            "SELECT aa.advisory_id, aa.package, aa.ranges, aa.versions"
+            " FROM advisory_affected aa"
+            " JOIN unnest(CAST(:advs AS text[]), CAST(:pkgs AS text[])) AS t(a, p)"
+            "   ON aa.advisory_id = t.a AND aa.package = t.p"
+            " WHERE aa.ecosystem = 'npm'"
+        ),
+        {"advs": [a for a, _ in pairs], "pkgs": [p for _, p in pairs]},
+    )
+    entries: dict[tuple[str, str], list[dict[str, Any]]] = {}
+    for adv, pkg, ranges, versions in rows:
+        entries.setdefault((adv, pkg), []).append({"ranges": ranges, "versions": versions})
+    return {
+        f.id: advisory_fix_hint(f.version, entries.get((f.advisory_id, f.package), []))
+        for f in findings
+    }

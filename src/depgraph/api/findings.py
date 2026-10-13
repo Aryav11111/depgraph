@@ -21,7 +21,7 @@ from depgraph.api.schemas import (
     Severity,
     SeverityCounts,
 )
-from depgraph.findings.fixes import fix_for_finding
+from depgraph.findings.fixes import fix_for_finding, fix_hints
 from depgraph.findings.report import (
     SEVERITY_RANK,
     FindingRow,
@@ -78,6 +78,7 @@ async def get_findings(
         max_depth=settings.paths_max_depth,
         max_expansions=settings.paths_max_expansions,
     )
+    hints = await fix_hints(session, rows)
     findings = []
     for r in rows:
         path = shortest.get(r.node_id)
@@ -89,6 +90,7 @@ async def get_findings(
                 advisory=AdvisoryRef(**_advisory_ref(r)),
                 direct=path is not None and len(path) == 2,  # root -> package
                 dev_only=r.dev_only,
+                fixed_version_hint=hints.get(r.id),
                 shortest_path=[PathStep.model_validate(s) for s in path] if path else None,
                 first_detected=r.first_detected,
                 last_confirmed=r.last_confirmed,

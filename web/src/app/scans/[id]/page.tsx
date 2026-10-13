@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 
-import { ScanSummary } from "@/components/scan-summary";
+import { ScanView } from "@/components/scan-view";
 
 // Cache Components: the route param is request-time data, so it is read inside a
 // <Suspense> boundary. The page shell prerenders; the scan streams in.
@@ -16,5 +16,5 @@ export default function ScanPage({ params }: PageProps<"/scans/[id]">) {
 
 async function ScanFromParams({ params }: Pick<PageProps<"/scans/[id]">, "params">) {
   const { id } = await params;
-  return <ScanSummary scanId={id} />;
+  return <ScanView scanId={id} />;
 }
