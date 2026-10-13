@@ -56,7 +56,7 @@ export function FixCard({ fix, pkg, installed }: { fix: Fix; pkg: string; instal
             <div className="overflow-x-auto">
               <table className="w-full min-w-[28rem] text-left text-sm">
                 <caption className="sr-only">Packages whose declared range blocks the fix</caption>
-                <thead className="text-xs uppercase text-zinc-500">
+                <thead className="text-xs uppercase text-zinc-600 dark:text-zinc-400">
                   <tr>
                     <th className="py-1 pr-3 font-medium">Blocked by</th>
                     <th className="py-1 pr-3 font-medium">Declares</th>
@@ -71,7 +71,7 @@ export function FixCard({ fix, pkg, installed }: { fix: Fix; pkg: string; instal
                       </td>
                       <td className="py-1.5 pr-3 font-mono">{p.declared_range ?? "?"}</td>
                       <td className="py-1.5 font-mono">
-                        {p.upgrade_to ?? (p.is_root ? `^${fix.fixed_version}` : <span className="text-zinc-500">no release yet</span>)}
+                        {p.upgrade_to ?? (p.is_root ? `^${fix.fixed_version}` : <span className="text-zinc-600 dark:text-zinc-400">no release yet</span>)}
                       </td>
                     </tr>
                   ))}
@@ -81,7 +81,7 @@ export function FixCard({ fix, pkg, installed }: { fix: Fix; pkg: string; instal
           )}
           {Object.keys(fix.overrides).length > 0 && (
             <div className="flex flex-col gap-1">
-              <p className="text-xs text-zinc-500">
+              <p className="text-xs text-zinc-600 dark:text-zinc-400">
                 Or force it in package.json (npm 8.3+). Test it: the parent never declared support for this version.
               </p>
               <CodeBlock code={JSON.stringify({ overrides: fix.overrides }, null, 2)} />
@@ -91,7 +91,7 @@ export function FixCard({ fix, pkg, installed }: { fix: Fix; pkg: string; instal
       )}
 
       {fix.fixed_version && (
-        <p className="text-xs text-zinc-500">
+        <p className="text-xs text-zinc-600 dark:text-zinc-400">
           {fix.source === "registry"
             ? "Fixed version checked against releases published on npm."
             : "Fixed version taken from the advisory (npm registry unavailable); confirm it was published."}

@@ -5,21 +5,21 @@ import { SEVERITY_STYLE } from "@/lib/severity";
 
 /** Shortest dependency path, middle-truncated so long chains stay one line. */
 export function PathTrail({ path }: { path: FindingSummary["shortest_path"] }) {
-  if (!path) return <span className="text-zinc-500">path beyond depth limit</span>;
+  if (!path) return <span className="text-zinc-600 dark:text-zinc-400">path beyond depth limit</span>;
   const steps = path.length > 5 ? [...path.slice(0, 2), null, ...path.slice(-2)] : path;
   return (
     <span className="inline-flex flex-wrap items-center gap-x-1 font-mono text-xs text-zinc-600 dark:text-zinc-400">
       {steps.map((step, i) =>
         step === null ? (
-          <span key="gap" title={`${path.length - 4} more`} className="text-zinc-400">
+          <span key="gap" title={`${path.length - 4} more`} className="text-zinc-500 dark:text-zinc-400">
             › …
           </span>
         ) : (
           <span key={`${step.id}-${i}`} className="inline-flex items-center gap-1">
-            {i > 0 && <span className="text-zinc-400">›</span>}
+            {i > 0 && <span className="text-zinc-500 dark:text-zinc-400">›</span>}
             <span>{step.name}</span>
             {step.dep_type && step.dep_type !== "prod" && (
-              <span className="rounded bg-zinc-100 px-1 text-[10px] uppercase text-zinc-500 dark:bg-zinc-800">
+              <span className="rounded bg-zinc-100 px-1 text-[10px] uppercase text-zinc-600 dark:text-zinc-400 dark:bg-zinc-800">
                 {step.dep_type.replace("_", " ")}
               </span>
             )}
@@ -56,14 +56,14 @@ export function FindingRow({ finding, scanId }: { finding: FindingSummary; scanI
           <span className="font-mono text-sm">
             <span className="text-red-700 dark:text-red-400">{finding.version}</span>
             {malicious ? (
-              <span className="text-zinc-500"> → remove</span>
+              <span className="text-zinc-600 dark:text-zinc-400"> → remove</span>
             ) : finding.fixed_version_hint ? (
-              <span className="text-zinc-500">
+              <span className="text-zinc-600 dark:text-zinc-400">
                 {" → "}
                 <span className="text-emerald-700 dark:text-emerald-400">{finding.fixed_version_hint}</span>
               </span>
             ) : (
-              <span className="text-zinc-500"> → no fix yet</span>
+              <span className="text-zinc-600 dark:text-zinc-400"> → no fix yet</span>
             )}
           </span>
           <span className="flex flex-wrap gap-1.5">
@@ -78,7 +78,7 @@ export function FindingRow({ finding, scanId }: { finding: FindingSummary; scanI
         </p>
         <div className="flex flex-wrap items-center justify-between gap-2">
           <PathTrail path={finding.shortest_path} />
-          <span className="font-mono text-xs text-zinc-500">
+          <span className="font-mono text-xs text-zinc-600 dark:text-zinc-400">
             {cve ?? advisory.id}
             {advisory.cvss_v3_score != null && ` · CVSS ${advisory.cvss_v3_score.toFixed(1)}`}
           </span>

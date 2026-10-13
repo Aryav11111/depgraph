@@ -53,12 +53,12 @@ export function ApiStatus() {
       <span className={`size-2 rounded-full ${dot}`} aria-hidden />
       <span>{label}</span>
       {"checks" in status && (
-        <span className="text-zinc-500">
+        <span className="text-zinc-600 dark:text-zinc-400">
           ({Object.entries(status.checks).map(([k, v]) => `${k}: ${v}`).join(", ")})
         </span>
       )}
       {status.state === "unreachable" && (
-        <span className="font-mono text-xs text-zinc-500">{API_URL}</span>
+        <span className="font-mono text-xs text-zinc-600 dark:text-zinc-400">{API_URL}</span>
       )}
     </div>
   );

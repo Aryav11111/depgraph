@@ -1323,3 +1323,59 @@ so E2E now also checks that **no element's right edge passes the viewport**.
   depth 1 still 30 nodes thanks to vulnerable paths);
 - the 505-node graph and its braces path highlight work;
 - no page errors, and mobile is fixed.
+
+## Step 6: States, mobile, and end-to-end + accessibility tests in CI
+
+### Every state, everywhere
+- **App-level:** `error.tsx` (render crash → "Try again"), `global-error.tsx`
+  (root-layout failure; renders its own `<html>`/`<body>` and imports global
+  styles, per the Next 16 docs), and a custom root `not-found.tsx` (unmatched
+  URLs return a real **404**, which is tested). In Next 16 the recovery prop is
+  **`retry()`**, not the older `reset()`, which I checked in the bundled docs.
+- **Retry** on every data view: an `attempt` counter re-runs the fetch. 404s
+  get no retry button, because they won't fix themselves.
+- **Cold starts:** Cloud Run scales to zero, so any load lasting over 3 s shows
+  "the API scales to zero… waking it up" (`useSlow`), which disappears when the
+  data arrives (tested with an injected 4.5 s delay).
+- **Upload:** a Cancel button (the `AbortController` is wired through
+  `openapi-fetch`). Touch screens get "Choose your package-lock.json" instead of
+  "Drop…" (Tailwind `pointer-coarse:`).
+- **Graph:** an empty state for projects with no dependencies.
+- **Server errors** show a generic message; the API's `detail` never reaches the
+  page on 5xx (tested with a fake `psycopg` error body).
+
+### Mobile
+- The dashboard's filter controls (about 250 px tall) collapse behind a
+  "Filters (n)" toggle below `sm`, but stay open whenever a filter is active so
+  applied filters are never hidden.
+- On touch screens (`pointer-coarse:`), chips, segmented controls, checkboxes and
+  buttons are **≥ 44 px tall** (WCAG 2.5.5); the test measures it.
+- **Real bug found:** on a 412 px phone the detail page was 553 px wide, because
+  of a long unbreakable *inline* exploit string in an advisory. Block code
+  already scrolls inside its own `<pre>`. Advisory prose now uses
+  `overflow-wrap: anywhere`. The earlier 375 px ad-hoc check had looked at a
+  different finding, which is why fixed, repeatable tests beat one-off scripts.
+
+### Accessibility: axe-core in every E2E run
+`@axe-core/playwright` runs on home, dashboard, detail, graph and 404, in light
+**and dark** mode, and **fails on any "serious" or "critical" violation**. The
+first run found real ones: **colour contrast** (grey secondary text, especially
+in dark mode, and `opacity-70/80` on counts). Fixed systematically: one
+secondary grey per mode that passes (zinc-600 on white, zinc-400 on near-black),
+and no translucent text. Only React Flow's canvas internals are excluded; its
+controls are still checked.
+
+### Playwright suite in the repo (replaces the ad-hoc scripts)
+36 tests across `upload`, `dashboard`, `detail`, `graph`, `states`, `a11y`
+(desktop) and `mobile` (Pixel 7 profile). They use **installed browsers via
+`channel`**, with no browser downloads: Edge locally, the Chrome preinstalled on
+GitHub's runners in CI. A helper scopes locators to visible elements, because
+Next 16 keeps recently visited routes mounted but hidden.
+
+### New CI job: `e2e` against the real stack
+`docker compose up --wait api` (Postgres, Redis, migrations, API) → load the
+**frozen OSV fixture** (`audit-subset.zip`) with the real ingester → `next build`
+→ `playwright test` in Chrome. Because the advisory data is frozen, assertions
+can be exact (89 findings, 68 without dev-only, 85/172 graph nodes at depth 2).
+On failure it uploads the Playwright report and traces, and prints API logs.
+Cost: a few CI minutes per push, free for a public repo.

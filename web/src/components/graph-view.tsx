@@ -32,6 +32,7 @@ import {
 import { SEVERITY_ORDER, SEVERITY_STYLE } from "@/lib/severity";
 
 import { ScanTabs } from "./scan-tabs";
+import { ErrorState, SlowHint } from "./states";
 
 const LARGE = 600; // nodes; above this, ask before rendering
 const SEVERITY_STROKE: Record<Severity, string> = {
@@ -47,6 +48,11 @@ type State = { kind: "loading" } | { kind: "error"; message: string } | ({ kind:
 
 export function GraphView({ scanId }: { scanId: string }) {
   const [state, setState] = useState<State>({ kind: "loading" });
+  const [attempt, setAttempt] = useState(0);
+  const retry = () => {
+    setState({ kind: "loading" });
+    setAttempt((n) => n + 1);
+  };
 
   useEffect(() => {
     const controller = new AbortController();
@@ -61,20 +67,22 @@ export function GraphView({ scanId }: { scanId: string }) {
         setState({ kind: "error", message: err instanceof ApiError ? err.message : "Couldn't load the graph." });
       });
     return () => controller.abort();
-  }, [scanId]);
+  }, [scanId, attempt]);
 
   return (
     <div className="flex flex-col gap-4">
       <ScanTabs scanId={scanId} />
+      {state.kind === "loading" && <SlowHint active />}
       {state.kind === "loading" && (
         <div className="h-[65vh] min-h-[420px] animate-pulse rounded-xl bg-zinc-100 dark:bg-zinc-900" aria-busy="true" aria-label="Loading graph" />
       )}
-      {state.kind === "error" && (
-        <p role="alert" className="text-red-700 dark:text-red-400">
-          {state.message}
+      {state.kind === "error" && <ErrorState message={state.message} onRetry={retry} />}
+      {state.kind === "ok" && state.graph.nodes.length <= 1 && (
+        <p className="rounded-xl border border-dashed border-zinc-300 p-8 text-center text-zinc-600 dark:border-zinc-700 dark:text-zinc-400">
+          This project has no dependencies, so there&apos;s no graph to draw.
         </p>
       )}
-      {state.kind === "ok" && (
+      {state.kind === "ok" && state.graph.nodes.length > 1 && (
         <ReactFlowProvider>
           <GraphExplorer scanId={scanId} {...state} />
         </ReactFlowProvider>
@@ -207,11 +215,11 @@ function GraphExplorer({ scanId, scan, graph, findings }: Loaded & { scanId: str
               className="w-32 accent-indigo-600"
               aria-valuetext={`${depthLimit} of ${model.maxDepth}`}
             />
-            <span className="tabular-nums text-zinc-500">
+            <span className="tabular-nums text-zinc-600 dark:text-zinc-400">
               {depthLimit}/{model.maxDepth}
             </span>
           </label>
-          <span className="text-zinc-500">
+          <span className="text-zinc-600 dark:text-zinc-400">
             {visible.size.toLocaleString()} of {model.depth.size.toLocaleString()} packages shown
             {model.findingsOn.size > 0 && " (vulnerable paths always included)"}
           </span>
@@ -266,9 +274,9 @@ function GraphExplorer({ scanId, scan, graph, findings }: Loaded & { scanId: str
           <div className="rounded-xl border border-zinc-200 p-3 text-sm dark:border-zinc-800">
             <p className="font-mono font-medium">
               {nodeInfo.name}
-              {nodeInfo.version && <span className="text-zinc-500">@{nodeInfo.version}</span>}
+              {nodeInfo.version && <span className="text-zinc-600 dark:text-zinc-400">@{nodeInfo.version}</span>}
             </p>
-            <p className="text-zinc-500">
+            <p className="text-zinc-600 dark:text-zinc-400">
               depth {model.depth.get(nodeInfo.id) ?? "?"}
               {nodeInfo.dev && " · dev-only"}
             </p>
@@ -282,10 +290,10 @@ function GraphExplorer({ scanId, scan, graph, findings }: Loaded & { scanId: str
 
         <div className="flex flex-col gap-2">
           <h2 className="text-sm font-semibold">
-            Findings <span className="font-normal text-zinc-500">· click to trace its paths</span>
+            Findings <span className="font-normal text-zinc-600 dark:text-zinc-400">· click to trace its paths</span>
           </h2>
           {sorted.length === 0 ? (
-            <p className="text-sm text-zinc-500">No findings in {scan.root_name ?? "this project"}.</p>
+            <p className="text-sm text-zinc-600 dark:text-zinc-400">No findings in {scan.root_name ?? "this project"}.</p>
           ) : (
             <ul className="flex max-h-[60vh] flex-col gap-1 overflow-y-auto pr-1">
               {sorted.map((f) => {
@@ -304,7 +312,7 @@ function GraphExplorer({ scanId, scan, graph, findings }: Loaded & { scanId: str
                       <span className={`mt-1.5 size-2 shrink-0 rounded-full ${SEVERITY_STYLE[f.advisory.severity].dot}`} aria-hidden />
                       <span className="min-w-0">
                         <span className="font-mono">{f.package}@{f.version}</span>
-                        <span className="block truncate text-xs text-zinc-500">{f.advisory.summary ?? f.advisory.id}</span>
+                        <span className="block truncate text-xs text-zinc-600 dark:text-zinc-400">{f.advisory.summary ?? f.advisory.id}</span>
                       </span>
                     </button>
                   </li>
@@ -358,7 +366,7 @@ const NODE_TYPES = { pkg: PkgNode };
 
 function Legend() {
   return (
-    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-zinc-500">
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-zinc-600 dark:text-zinc-400">
       {SEVERITY_ORDER.slice(0, 4).map((s) => (
         <span key={s} className="inline-flex items-center gap-1.5">
           <span className="size-3 rounded-full border-2 bg-white" style={{ borderColor: SEVERITY_STROKE[s] }} aria-hidden />

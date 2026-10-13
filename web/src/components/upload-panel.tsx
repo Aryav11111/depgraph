@@ -3,6 +3,8 @@
 import { useRouter } from "next/navigation";
 import { useCallback, useId, useRef, useState } from "react";
 
+import { SlowHint } from "./states";
+
 import { createScan } from "@/lib/api/scans";
 import { ApiError } from "@/lib/api/errors";
 import { checkSize, precheckLockfile } from "@/lib/lockfile-check";
@@ -20,18 +22,24 @@ export function UploadPanel() {
   const [state, setState] = useState<State>({ kind: "idle" });
   const [dragging, setDragging] = useState(false);
   const busy = state.kind === "busy";
+  const inflight = useRef<AbortController | null>(null);
 
   const submit = useCallback(
     async (blob: Blob, label: string) => {
+      const controller = new AbortController();
+      inflight.current = controller;
       setState({ kind: "busy", label });
       try {
-        const scan = await createScan(blob);
+        const scan = await createScan(blob, controller.signal);
         router.push(`/scans/${scan.id}`);
       } catch (err) {
+        if (controller.signal.aborted) return setState({ kind: "idle" });
         setState({
           kind: "error",
           message: err instanceof ApiError ? err.message : "Something went wrong. Try again.",
         });
+      } finally {
+        inflight.current = null;
       }
     },
     [router],
@@ -85,10 +93,14 @@ export function UploadPanel() {
         ].join(" ")}
       >
         <UploadIcon />
-        <p className="text-lg font-medium">
+        {/* "Drop" means nothing on a phone: touch screens get different wording. */}
+        <p className="text-lg font-medium pointer-coarse:hidden">
           Drop your <code className="font-mono text-[0.95em]">package-lock.json</code> here
         </p>
-        <p className="text-sm text-zinc-500">
+        <label htmlFor={inputId} className="hidden cursor-pointer text-lg font-medium pointer-coarse:block">
+          Choose your <code className="font-mono text-[0.95em]">package-lock.json</code>
+        </label>
+        <p className="text-sm text-zinc-600 dark:text-zinc-400">
           or{" "}
           <label
             htmlFor={inputId}
@@ -113,10 +125,10 @@ export function UploadPanel() {
         />
       </div>
 
-      <StatusLine state={state} />
+      <StatusLine state={state} onCancel={() => inflight.current?.abort()} />
 
       <section aria-labelledby="samples-heading" className="flex flex-col gap-3">
-        <h2 id="samples-heading" className="text-sm font-medium uppercase tracking-wide text-zinc-500">
+        <h2 id="samples-heading" className="text-sm font-medium uppercase tracking-wide text-zinc-600 dark:text-zinc-400">
           No lockfile handy? Try a sample
         </h2>
         <div className="grid gap-3 sm:grid-cols-3">
@@ -126,11 +138,11 @@ export function UploadPanel() {
               type="button"
               disabled={busy}
               onClick={() => void handleSample(sample)}
-              className="flex flex-col gap-1 rounded-xl border border-zinc-200 p-4 text-left transition hover:border-indigo-400 hover:shadow-sm focus-visible:outline-2 focus-visible:outline-indigo-500 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-800 dark:hover:border-indigo-500"
+              className="flex min-h-11 flex-col gap-1 rounded-xl border border-zinc-200 p-4 text-left transition hover:border-indigo-400 hover:shadow-sm focus-visible:outline-2 focus-visible:outline-indigo-500 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-800 dark:hover:border-indigo-500"
             >
               <span className="font-medium">{sample.title}</span>
               <span className="text-sm text-zinc-600 dark:text-zinc-400">{sample.blurb}</span>
-              <span className="mt-1 text-xs text-zinc-500">{sample.highlights}</span>
+              <span className="mt-1 text-xs text-zinc-600 dark:text-zinc-400">{sample.highlights}</span>
             </button>
           ))}
         </div>
@@ -139,14 +151,26 @@ export function UploadPanel() {
   );
 }
 
-function StatusLine({ state }: { state: State }) {
+function StatusLine({ state, onCancel }: { state: State; onCancel: () => void }) {
   if (state.kind === "idle") return null;
   if (state.kind === "busy") {
     return (
-      <p role="status" aria-live="polite" className="flex items-center gap-2 text-sm text-zinc-600 dark:text-zinc-400">
-        <span className="size-4 animate-spin rounded-full border-2 border-zinc-300 border-t-indigo-500" aria-hidden />
-        {state.label}
-      </p>
+      <div className="flex flex-col gap-2">
+        <div className="flex flex-wrap items-center gap-3">
+          <p role="status" aria-live="polite" className="flex items-center gap-2 text-sm text-zinc-600 dark:text-zinc-400">
+            <span className="size-4 animate-spin rounded-full border-2 border-zinc-300 border-t-indigo-500" aria-hidden />
+            {state.label}
+          </p>
+          <button
+            type="button"
+            onClick={onCancel}
+            className="min-h-11 rounded-lg px-3 text-sm font-medium text-zinc-700 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-900"
+          >
+            Cancel
+          </button>
+        </div>
+        <SlowHint active />
+      </div>
     );
   }
   return (
@@ -161,7 +185,7 @@ function StatusLine({ state }: { state: State }) {
 
 function UploadIcon() {
   return (
-    <svg viewBox="0 0 24 24" className="size-10 text-zinc-400" fill="none" stroke="currentColor" strokeWidth={1.5} aria-hidden>
+    <svg viewBox="0 0 24 24" className="size-10 text-zinc-500 dark:text-zinc-400" fill="none" stroke="currentColor" strokeWidth={1.5} aria-hidden>
       <path strokeLinecap="round" strokeLinejoin="round" d="M12 16V4m0 0-4 4m4-4 4 4M4 16v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" />
     </svg>
   );

@@ -14,6 +14,7 @@ import { AdvisoryMarkdown } from "./advisory-markdown";
 import { Badge } from "./finding-row";
 import { FixCard } from "./fix-card";
 import { PathsList } from "./paths-list";
+import { ErrorState, SlowHint } from "./states";
 
 type State = { kind: "loading" } | { kind: "error"; message: string } | { kind: "ok"; finding: FindingDetail };
 
@@ -23,6 +24,11 @@ export function FindingDetailView({ scanId, findingId }: { scanId: string; findi
   const id = Number(findingId);
   const validId = Number.isSafeInteger(id) && id > 0;
   const [state, setState] = useState<State>({ kind: "loading" });
+  const [attempt, setAttempt] = useState(0);
+  const retry = () => {
+    setState({ kind: "loading" });
+    setAttempt((n) => n + 1);
+  };
 
   // sessionStorage is an external store: read it with useSyncExternalStore, which
   // uses the server snapshot ("") during hydration, so there is no mismatch.
@@ -42,7 +48,7 @@ export function FindingDetailView({ scanId, findingId }: { scanId: string; findi
         });
       });
     return () => controller.abort();
-  }, [scanId, id, validId]);
+  }, [scanId, id, validId, attempt]);
 
   const back = (
     <Link href={backHref} className="text-sm font-medium text-indigo-600 hover:underline dark:text-indigo-400">
@@ -52,26 +58,28 @@ export function FindingDetailView({ scanId, findingId }: { scanId: string; findi
 
   if (!validId) {
     return (
-      <div role="alert" className="flex flex-col items-start gap-3">
-        {back}
-        <p className="text-red-700 dark:text-red-400">Not a valid finding.</p>
-      </div>
+      <ErrorState message="Not a valid finding." backHref={backHref} backLabel="← All findings" />
     );
   }
   if (state.kind === "loading") {
     return (
       <div className="flex flex-col gap-6">
         {back}
+        <SlowHint active />
         <DetailSkeleton />
       </div>
     );
   }
   if (state.kind === "error") {
+    // 404s won't fix themselves; everything else (network, 5xx, cold start) might.
+    const retryable = !/not found/i.test(state.message);
     return (
-      <div role="alert" className="flex flex-col items-start gap-3">
-        {back}
-        <p className="text-red-700 dark:text-red-400">{state.message}</p>
-      </div>
+      <ErrorState
+        message={state.message}
+        onRetry={retryable ? retry : undefined}
+        backHref={backHref}
+        backLabel="← All findings"
+      />
     );
   }
 
@@ -89,7 +97,7 @@ export function FindingDetailView({ scanId, findingId }: { scanId: string; findi
           <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-sm ring-1 ${style.badge}`}>
             <span className={`size-2 rounded-full ${style.dot}`} aria-hidden />
             {style.label}
-            {a.cvss_v3_score != null && <span className="tabular-nums opacity-80">· CVSS {a.cvss_v3_score.toFixed(1)}</span>}
+            {a.cvss_v3_score != null && <span className="tabular-nums">· CVSS {a.cvss_v3_score.toFixed(1)}</span>}
           </span>
           {a.kind === "malicious" && <Badge tone="red">Malicious package</Badge>}
           {f.dev_only && <Badge>Dev-only</Badge>}
@@ -98,7 +106,7 @@ export function FindingDetailView({ scanId, findingId }: { scanId: string; findi
         <p className="font-mono text-sm">
           {f.package}@<span className="text-red-700 dark:text-red-400">{f.version}</span>
         </p>
-        <p className="flex flex-wrap gap-x-3 gap-y-1 text-sm text-zinc-500">
+        <p className="flex flex-wrap gap-x-3 gap-y-1 text-sm text-zinc-600 dark:text-zinc-400">
           {osv ? (
             <a href={osv} {...EXTERNAL_LINK} className="font-mono text-indigo-600 hover:underline dark:text-indigo-400">
               {a.id}
@@ -120,7 +128,7 @@ export function FindingDetailView({ scanId, findingId }: { scanId: string; findi
       <section aria-labelledby="paths-heading" className="flex flex-col gap-3">
         <h2 id="paths-heading" className="font-semibold">
           How it gets into your project{" "}
-          <span className="font-normal text-zinc-500">
+          <span className="font-normal text-zinc-600 dark:text-zinc-400">
             · {f.paths.length}
             {f.paths_truncated ? "+" : ""} path{f.paths.length === 1 ? "" : "s"}, shortest first
           </span>
@@ -135,7 +143,7 @@ export function FindingDetailView({ scanId, findingId }: { scanId: string; findi
           </h2>
           <AdvisoryMarkdown>{a.details}</AdvisoryMarkdown>
           {(a.cvss_v3_vector || a.cvss_v4_vector) && (
-            <p className="break-all font-mono text-xs text-zinc-500">{a.cvss_v3_vector ?? a.cvss_v4_vector}</p>
+            <p className="break-all font-mono text-xs text-zinc-600 dark:text-zinc-400">{a.cvss_v3_vector ?? a.cvss_v4_vector}</p>
           )}
         </section>
       )}
@@ -148,7 +156,7 @@ export function FindingDetailView({ scanId, findingId }: { scanId: string; findi
           <ul className="flex flex-col gap-1 text-sm">
             {references.map((r, i) => (
               <li key={i} className="flex min-w-0 gap-2">
-                <span className="w-20 shrink-0 text-xs uppercase leading-5 text-zinc-500">{r.type.toLowerCase()}</span>
+                <span className="w-20 shrink-0 text-xs uppercase leading-5 text-zinc-600 dark:text-zinc-400">{r.type.toLowerCase()}</span>
                 <a href={safeHttpUrl(r.url)!} {...EXTERNAL_LINK} className="min-w-0 break-all text-indigo-600 hover:underline dark:text-indigo-400">
                   {r.url}
                 </a>

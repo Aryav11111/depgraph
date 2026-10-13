@@ -57,7 +57,7 @@ export function FindingsDashboard({ scanId, findings, counts }: Props) {
     return (
       <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-6 text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-200">
         <p className="font-medium">No known vulnerable or malicious packages.</p>
-        <p className="mt-1 text-sm opacity-80">
+        <p className="mt-1 text-sm">
           Checked against the OSV.dev database (GitHub advisories and OpenSSF malicious-package reports).
           New advisories are matched against this scan automatically as they&apos;re published.
         </p>
@@ -71,7 +71,7 @@ export function FindingsDashboard({ scanId, findings, counts }: Props) {
         Findings
       </h2>
       <FilterBar filters={filters} counts={counts} onChange={setFilters} />
-      <p className="text-sm text-zinc-500" aria-live="polite">
+      <p className="text-sm text-zinc-600 dark:text-zinc-400" aria-live="polite">
         Showing {visible.length} of {findings.length} findings
       </p>
 
@@ -92,7 +92,7 @@ export function FindingsDashboard({ scanId, findings, counts }: Props) {
             <h3 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-zinc-600 dark:text-zinc-400">
               <span className={`size-2.5 rounded-full ${SEVERITY_STYLE[group.severity].dot}`} aria-hidden />
               {SEVERITY_STYLE[group.severity].label}
-              <span className="font-normal tabular-nums text-zinc-400">{group.findings.length}</span>
+              <span className="font-normal tabular-nums text-zinc-500 dark:text-zinc-400">{group.findings.length}</span>
             </h3>
             <ul className="flex flex-col gap-2">
               {group.findings.map((f) => (

@@ -43,7 +43,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         </header>
         {children}
         <footer className="border-t border-zinc-200 dark:border-zinc-800">
-          <div className="mx-auto flex w-full max-w-5xl flex-wrap items-center justify-between gap-3 px-4 py-4 text-xs text-zinc-500 sm:px-6">
+          <div className="mx-auto flex w-full max-w-5xl flex-wrap items-center justify-between gap-3 px-4 py-4 text-xs text-zinc-600 dark:text-zinc-400 sm:px-6">
             <span>Advisories from OSV.dev (GitHub Advisory Database + OpenSSF malicious packages).</span>
             <ApiStatus />
           </div>

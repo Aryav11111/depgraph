@@ -54,8 +54,8 @@ are planned later layers on top of it.
 | Findings dashboard | ✅ |
 | Finding detail: advisory, all paths, fix | ✅ |
 | Interactive dependency graph (React Flow) | ✅ |
-| Loading / empty / error states, mobile | ⏳ next |
-| Deploy: Cloud Run + Vercel, rate limiting | planned |
+| Loading / empty / error states, mobile, E2E + accessibility in CI | ✅ |
+| Deploy: Cloud Run + Vercel, rate limiting | ⏳ next |
 | Deploy on merge, live demo link + screenshot | planned |
 
 ## Architecture
@@ -161,6 +161,8 @@ OSV load (~220 MB download, about 2 minutes); after that it syncs incrementally 
 | `make logs` / `make down` | tail API logs / stop the stack |
 
 **Web app** (Node 20.9+): `cd web && npm ci && npm run dev`, then open http://localhost:3000.
+Browser tests: `cd web && npm run build && npm run e2e` (Playwright drives your installed Edge;
+set `PW_CHANNEL=chrome` for Chrome), with `make up` running and advisories loaded.
 It talks to the API at `NEXT_PUBLIC_API_URL` (default `http://localhost:8080`, see
 [web/.env.example](web/.env.example)). After changing API models, run `make openapi` to
 re-export the schema and regenerate the frontend's types. CI fails if they drift.

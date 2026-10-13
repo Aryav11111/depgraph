@@ -29,6 +29,15 @@ export function FilterBar({ filters, counts, onChange }: Props) {
     return () => clearTimeout(t);
   }, [query, filters, onChange]);
 
+  // Phones: the controls collapse behind a toggle (they're ~250px tall), but stay
+  // open whenever a filter is active so the user can always see what's applied.
+  const [open, setOpen] = useState(false);
+  const activeCount =
+    filters.severities.length +
+    Number(filters.kind !== "all") +
+    Number(filters.reach !== "all") +
+    Number(filters.hideDevOnly);
+
   const toggleSeverity = (s: Severity) =>
     onChange({
       ...filters,
@@ -47,8 +56,17 @@ export function FilterBar({ filters, counts, onChange }: Props) {
           maxLength={100}
           placeholder="Search package, CVE, advisory…"
           aria-label="Search findings"
-          className="min-w-0 flex-1 basis-56 rounded-lg border border-zinc-300 bg-transparent px-3 py-1.5 text-sm outline-none focus:border-indigo-500 dark:border-zinc-700"
+          className="min-h-9 min-w-0 flex-1 basis-56 rounded-lg border border-zinc-300 bg-transparent px-3 py-1.5 text-sm outline-none focus:border-indigo-500 pointer-coarse:min-h-11 dark:border-zinc-700"
         />
+        <button
+          type="button"
+          aria-expanded={open}
+          aria-controls="filter-controls"
+          onClick={() => setOpen((v) => !v)}
+          className="min-h-11 rounded-lg border border-zinc-300 px-3 text-sm sm:hidden dark:border-zinc-700"
+        >
+          Filters{activeCount > 0 ? ` (${activeCount})` : ""}
+        </button>
         {isFiltered(filters) && (
           <button
             type="button"
@@ -60,6 +78,10 @@ export function FilterBar({ filters, counts, onChange }: Props) {
         )}
       </div>
 
+      <div
+        id="filter-controls"
+        className={`${open || activeCount > 0 ? "flex" : "hidden"} flex-col gap-3 sm:flex`}
+      >
       <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Severity">
         {SEVERITY_ORDER.filter((s) => counts[s] > 0).map((s) => {
           const on = filters.severities.includes(s);
@@ -70,12 +92,12 @@ export function FilterBar({ filters, counts, onChange }: Props) {
               aria-pressed={on}
               onClick={() => toggleSeverity(s)}
               className={[
-                "inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-sm ring-1 transition",
+                "inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-sm ring-1 transition pointer-coarse:min-h-11",
                 on ? SEVERITY_STYLE[s].badge : "ring-zinc-200 text-zinc-600 hover:bg-zinc-50 dark:ring-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-900",
               ].join(" ")}
             >
               <span className={`size-2 rounded-full ${SEVERITY_STYLE[s].dot}`} aria-hidden />
-              {SEVERITY_STYLE[s].label} <span className="tabular-nums opacity-70">{counts[s]}</span>
+              {SEVERITY_STYLE[s].label} <span className="tabular-nums">{counts[s]}</span>
             </button>
           );
         })}
@@ -94,7 +116,7 @@ export function FilterBar({ filters, counts, onChange }: Props) {
           options={[["all", "All"], ["direct", "Direct"], ["transitive", "Transitive"]]}
           onChange={(reach) => onChange({ ...filters, reach })}
         />
-        <label className="inline-flex cursor-pointer items-center gap-2">
+        <label className="inline-flex cursor-pointer items-center gap-2 pointer-coarse:min-h-11">
           <input
             type="checkbox"
             checked={filters.hideDevOnly}
@@ -103,6 +125,7 @@ export function FilterBar({ filters, counts, onChange }: Props) {
           />
           Hide dev-only
         </label>
+      </div>
       </div>
     </div>
   );
@@ -129,7 +152,7 @@ function Segmented<T extends string>({
           aria-checked={value === v}
           onClick={() => onChange(v)}
           className={[
-            "rounded-md px-2.5 py-1 transition",
+            "rounded-md px-2.5 py-1 transition pointer-coarse:min-h-11",
             value === v
               ? "bg-white shadow-sm dark:bg-zinc-700"
               : "text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100",

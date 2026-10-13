@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import type { FindingSummary, Scan, Severity } from "@/lib/api/client";
@@ -9,6 +8,7 @@ import { getFindings, getScan } from "@/lib/api/scans";
 
 import { FindingsDashboard } from "./findings-dashboard";
 import { ScanTabs } from "./scan-tabs";
+import { ErrorState, SlowHint } from "./states";
 
 type Loaded = {
   scan: Scan;
@@ -20,6 +20,11 @@ type State = { kind: "loading" } | { kind: "error"; message: string } | ({ kind:
 /** A scan page: header + findings dashboard. Fetches once; filters work client-side. */
 export function ScanView({ scanId }: { scanId: string }) {
   const [state, setState] = useState<State>({ kind: "loading" });
+  const [attempt, setAttempt] = useState(0);
+  const retry = () => {
+    setState({ kind: "loading" });
+    setAttempt((n) => n + 1);
+  };
 
   useEffect(() => {
     const controller = new AbortController();
@@ -37,29 +42,29 @@ export function ScanView({ scanId }: { scanId: string }) {
       }
     })();
     return () => controller.abort();
-  }, [scanId]);
+  }, [scanId, attempt]);
 
-  if (state.kind === "loading") return <ScanSkeleton />;
-  if (state.kind === "error") {
+  if (state.kind === "loading") {
     return (
-      <div role="alert" className="flex flex-col items-start gap-3">
-        <p className="text-red-700 dark:text-red-400">{state.message}</p>
-        <Link href="/" className="text-sm font-medium text-indigo-600 hover:underline dark:text-indigo-400">
-          ← Scan another lockfile
-        </Link>
+      <div className="flex flex-col gap-4">
+        <SlowHint active />
+        <ScanSkeleton />
       </div>
     );
+  }
+  if (state.kind === "error") {
+    return <ErrorState message={state.message} onRetry={retry} />;
   }
 
   const { scan, findings, counts } = state;
   return (
     <div className="flex flex-col gap-8">
       <header>
-        <p className="text-sm text-zinc-500">Scan</p>
+        <p className="text-sm text-zinc-600 dark:text-zinc-400">Scan</p>
         <h1 className="text-2xl font-semibold tracking-tight break-words sm:text-3xl">
           {scan.root_name ?? "Untitled project"}
         </h1>
-        <p className="mt-1 text-sm text-zinc-500">
+        <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
           {packageCount(scan)} packages · lockfile v{scan.lockfile_version ?? "?"}
           {findings && ` · ${findings.length} findings`}
           {scan.warnings.length > 0 &&
