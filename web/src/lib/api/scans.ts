@@ -50,3 +50,9 @@ export function getFinding(scanId: string, findingId: number, signal?: AbortSign
     }),
   );
 }
+
+export function getGraph(scanId: string, signal?: AbortSignal) {
+  return call(() =>
+    api.GET("/scans/{scan_id}/graph", { params: { path: { scan_id: scanId } }, signal }),
+  );
+}

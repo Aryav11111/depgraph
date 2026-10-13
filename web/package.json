@@ -13,6 +13,7 @@
     "check:samples": "node scripts/check-samples.mjs"
   },
   "dependencies": {
+    "@xyflow/react": "^12.12.0",
     "next": "16.4.0",
     "openapi-fetch": "^0.17.0",
     "react": "19.3.0",

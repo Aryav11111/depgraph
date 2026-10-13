@@ -1258,3 +1258,68 @@ are cleaned up and re-run when shown.
 - 375 px has no horizontal scroll.
 
 Vitest gained a config only to mirror the `@/` path alias.
+
+## Step 5: Interactive dependency graph
+
+`/scans/[id]/graph` (a "Dependency graph" tab next to "Findings") uses React Flow
+(`@xyflow/react` 12.12, 0 production vulnerabilities). It loads only on this
+route (Next splits per route), so the dashboard doesn't pay for it.
+
+### All graph logic is pure and tested first (`lib/graph-model.ts`)
+- **Depth** = BFS hop count from the root; unreachable nodes are excluded.
+- **Highlight "every path to X"** = edges whose source is reachable from the
+  root *and* whose target can reach X. That is two linear passes, **exact and
+  uncapped**, with no API call per click, unlike the detail endpoint's
+  enumerated, capped list. With cycles it may include an edge that lies only on
+  a non-simple walk, which is fine for a visual highlight (documented, tested).
+- **Visible set** = nodes within the depth limit ∪ every node on a path to a
+  vulnerable package. **Vulnerable paths are always shown, however deep.**
+- **Radial layout, custom, no dependency.** Ring *k* holds depth-*k* nodes.
+  Ring 1 is spread evenly by name; deeper nodes take the *circular mean* angle
+  of their visible parents, then the ring is re-spaced in that order, so
+  children sit under their parents and crossings stay down. The ring radius
+  grows with depth *and* with how many nodes the ring holds (`n × spacing /
+  2π`), so crowded rings never overlap (tested with a 200-node fan-out). It is
+  deterministic: the same graph always gives the same picture.
+- *Rejected:* dagre or ELK layered layouts (about 150 KB more, and they put the
+  root at the top, not the centre) and force simulations (non-deterministic,
+  and they need many iterations for 500 nodes).
+
+### Usable on large graphs
+- The default is depth 2 plus the vulnerable paths: 85 of 172 nodes for the
+  legacy sample, versus an unreadable hairball at full depth.
+- The depth slider goes up to the full graph. Above **600 nodes** it asks before
+  rendering, offering "reduce depth" or "show anyway".
+- React Flow `onlyRenderVisibleElements`, nodes not draggable or connectable, no
+  animated edges, memoised node component and arrays. Highlighting changes only
+  styles, not the layout.
+- **Measured** on the largest sample (505 packages, depgraph's own lockfile):
+  the page opens in ~1.2 s; full depth renders all 505 nodes, and a re-layout
+  takes ~0.5 s.
+
+### Interaction
+- Click a finding in the side list: its paths light up (indigo, thicker), the
+  rest dims to 15%, and the view zooms to the lit subgraph.
+- Click a node: a panel shows name@version, depth, dev-only, and links to the
+  findings on it.
+- Nodes are ringed by worst severity, and non-prod edges are dashed; a legend
+  explains both.
+- Edges join node **centres** (handles centred and hidden), which suits a
+  radial picture better than top/bottom ports.
+
+### Bug found by the mobile check: grid `min-width: auto`
+At 375 px the toolbar and legend were clipped and `fitView` was off-centre.
+Grid items default to `min-width: auto`, so a long line widened the column past
+the viewport. Fixed with `minmax(0,1fr)` + `min-w-0`. My first mobile assertion
+(`scrollWidth`) missed it because the overflow was *clipped*, not scrollable,
+so E2E now also checks that **no element's right edge passes the viewport**.
+
+### Verified (Edge, end to end)
+- 85 nodes at depth 2;
+- the root at layout origin `translate(0px, 0px)`;
+- the serialize-javascript finding lights `legacy-api → mocha →
+  serialize-javascript`;
+- the node info panel, clear highlight and depth slider work (full depth 172/172;
+  depth 1 still 30 nodes thanks to vulnerable paths);
+- the 505-node graph and its braces path highlight work;
+- no page errors, and mobile is fixed.

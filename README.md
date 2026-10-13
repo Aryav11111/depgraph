@@ -53,8 +53,8 @@ are planned later layers on top of it.
 | Upload page (drag and drop + bundled sample lockfiles) | ✅ |
 | Findings dashboard | ✅ |
 | Finding detail: advisory, all paths, fix | ✅ |
-| Interactive dependency graph (React Flow) | ⏳ next |
-| Loading / empty / error states, mobile | planned |
+| Interactive dependency graph (React Flow) | ✅ |
+| Loading / empty / error states, mobile | ⏳ next |
 | Deploy: Cloud Run + Vercel, rate limiting | planned |
 | Deploy on merge, live demo link + screenshot | planned |
 

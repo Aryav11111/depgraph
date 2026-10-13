@@ -8,6 +8,7 @@ import { ApiError } from "@/lib/api/errors";
 import { getFindings, getScan } from "@/lib/api/scans";
 
 import { FindingsDashboard } from "./findings-dashboard";
+import { ScanTabs } from "./scan-tabs";
 
 type Loaded = {
   scan: Scan;
@@ -65,6 +66,8 @@ export function ScanView({ scanId }: { scanId: string }) {
             ` · ${scan.warnings.length} lockfile warning${scan.warnings.length === 1 ? "" : "s"}`}
         </p>
       </header>
+
+      {scan.status === "completed" && <ScanTabs scanId={scanId} />}
 
       {scan.status !== "completed" ? (
         <p role="alert" className="text-amber-700 dark:text-amber-400">
