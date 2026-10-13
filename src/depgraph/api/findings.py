@@ -19,6 +19,7 @@ from depgraph.api.schemas import (
     Kind,
     PathStep,
     Severity,
+    SeverityCounts,
 )
 from depgraph.findings.fixes import fix_for_finding
 from depgraph.findings.report import (
@@ -96,7 +97,7 @@ async def get_findings(
     return FindingsOut(
         scan_id=scan_id,
         matched_at=scan.matched_at,
-        counts={s: counts.get(s, 0) for s in SEVERITY_RANK},
+        counts=SeverityCounts(**{s: counts.get(s, 0) for s in SEVERITY_RANK}),
         findings=findings,
     )
 

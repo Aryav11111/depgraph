@@ -319,13 +319,8 @@ export interface components {
         };
         /** FindingsOut */
         FindingsOut: {
-            /**
-             * Counts
-             * @description Findings per severity, before filtering
-             */
-            counts: {
-                [key: string]: number;
-            };
+            /** @description Findings per severity, before filtering */
+            counts: components["schemas"]["SeverityCounts"];
             /** Findings */
             findings: components["schemas"]["FindingSummary"][];
             /**
@@ -508,6 +503,40 @@ export interface components {
             warnings: {
                 [key: string]: unknown;
             }[];
+        };
+        /**
+         * SeverityCounts
+         * @description Every severity is always present (0 if none), so clients needn't guess keys.
+         *
+         *     An explicit model rather than dict[Severity, int]: a dict renders in OpenAPI
+         *     as an open string->int map, which typed clients can't rely on.
+         */
+        SeverityCounts: {
+            /**
+             * Critical
+             * @default 0
+             */
+            CRITICAL: number;
+            /**
+             * High
+             * @default 0
+             */
+            HIGH: number;
+            /**
+             * Low
+             * @default 0
+             */
+            LOW: number;
+            /**
+             * Moderate
+             * @default 0
+             */
+            MODERATE: number;
+            /**
+             * Unknown
+             * @default 0
+             */
+            UNKNOWN: number;
         };
         /** ValidationError */
         ValidationError: {

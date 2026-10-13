@@ -50,8 +50,8 @@ are planned later layers on top of it.
 | Step | State |
 |---|---|
 | Next.js app in `/web` with a typed client generated from the OpenAPI schema | ✅ |
-| Upload page (drag and drop + bundled sample lockfiles) | ⏳ next |
-| Findings dashboard | planned |
+| Upload page (drag and drop + bundled sample lockfiles) | ✅ |
+| Findings dashboard | ⏳ next |
 | Finding detail: advisory, all paths, fix | planned |
 | Interactive dependency graph (React Flow) | planned |
 | Loading / empty / error states, mobile | planned |

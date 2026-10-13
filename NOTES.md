@@ -1050,3 +1050,72 @@ The first CI run failed `tsc` with `Cannot find name 'LayoutProps'`. Next 16's r
 locally only because a build had already run. `typecheck` is now `next typegen && tsc
 --noEmit`. It was reproduced locally from a clean `.next` before fixing: green locally is
 not the same as green from a fresh checkout.
+
+## Step 2: Upload page
+
+### Flow
+Drop a file or pick one (a native `<input type=file>` behind a `<label>`, so it is
+keyboard and screen-reader friendly with no library). The browser runs quick
+**pre-checks**, then the file is sent **byte-for-byte** to `POST /scans`
+(`openapi-fetch` with a pass-through `bodySerializer`), and the app navigates to
+`/scans/{id}`.
+
+### Pre-checks are for UX, not security
+Size (before reading the file), valid JSON, `lockfileVersion` 2/3, a `packages`
+section, and filename heuristics (`yarn.lock` / `pnpm-lock.yaml` / `package.json`
+get specific advice). They give instant, specific messages and avoid pointless
+uploads. **The API remains the trust boundary** and re-validates everything.
+Messages never echo file content; React escapes everything anyway. A Vitest case
+and an E2E check confirm that a `<img onerror>` payload in the JSON is never
+rendered.
+
+### Errors mapped to actions
+`ApiError` + `messageForStatus`: 413 too large, 422 shows the server's parse
+reason, 429 asks the user to wait (for step 7's rate limit), 5xx gives a generic
+message (**server internals are never shown**, which is tested), and network
+failure suggests the API may be cold-starting (Cloud Run scale-to-zero).
+
+### Samples: three real lockfiles, one click
+1. **Legacy Express API**: the npm-audit-verified backend fixture.
+2. **React + Vite dashboard**: the stage 1 fixture.
+3. **This website**: a **pinned snapshot** of `web/package-lock.json`, depgraph
+   scanning itself.
+
+Served as static files from `public/samples` and uploaded through the **same
+path as user files**, so the demo exercises the real flow. `check:samples` (in
+CI) keeps samples 1 and 2 byte-identical to the backend fixtures. Sample 3 is
+deliberately frozen so the demo doesn't change with every dependency bump. Card
+stats were **measured, not guessed**: my first copy said "177 packages" (raw
+lockfile entries), while depgraph reports 171 after collapsing duplicates. The
+cards now quote the scan's own numbers, dated because advisories keep arriving.
+
+### `/scans/[id]` under Cache Components
+The route param is request-time data, so per the Next 16 docs it is awaited
+inside `<Suspense>`. The build reports the route as a **partial prerender**: a
+static shell, with the scan fetched client-side.
+
+### The typed client caught a contract gap
+`counts: dict[Severity, int]` rendered in OpenAPI as an open `string -> number`
+map, so the frontend couldn't rely on the keys. Rather than cast it away, I
+changed the API contract to an explicit `SeverityCounts` model (five int fields,
+default 0). The JSON is identical, but the schema now guarantees the keys.
+
+### Toolchain fixes
+- The scaffold's `@types/node@^20` conflicted with Vitest's peer range while we
+  run Node 24, so the types now match the runtime and `engines.node` pins `24.x`
+  (Vercel builds with the same major). It was fixed properly, not with
+  `--legacy-peer-deps`.
+
+### Verified end to end in a real browser
+`playwright-core` driving the installed Edge (no browser download, outside the
+repo for now; Playwright joins the repo in step 6):
+- sample click → scan page with **89 findings in 1.4 s**;
+- a real file upload gives 11 findings;
+- the `package.json` rejection, hostile-JSON non-injection, server 422 and
+  unknown-scan errors all render readably;
+- **no horizontal scroll at 375 px**.
+
+### Found for step 7
+Production has **no Redis** (Option B), but `/health/ready` reports Redis as a
+required check, so the live site would show "degraded". Readiness must treat
+Redis as optional when it isn't configured.

@@ -75,6 +75,9 @@ jobs:
         run: npm run gen:api && git diff --exit-code -- src/lib/api/schema.d.ts
       - run: npm run typecheck
       - run: npm run lint
+      - run: npm test
+      - name: Bundled sample lockfiles match the backend fixtures
+        run: npm run check:samples
       - run: npm run build
 
   docker:

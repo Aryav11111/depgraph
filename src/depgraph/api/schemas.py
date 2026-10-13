@@ -103,12 +103,26 @@ class FindingSummary(BaseModel):
     last_confirmed: datetime
 
 
+class SeverityCounts(BaseModel):
+    """Every severity is always present (0 if none), so clients needn't guess keys.
+
+    An explicit model rather than dict[Severity, int]: a dict renders in OpenAPI
+    as an open string->int map, which typed clients can't rely on.
+    """
+
+    CRITICAL: int = 0
+    HIGH: int = 0
+    MODERATE: int = 0
+    LOW: int = 0
+    UNKNOWN: int = 0
+
+
 class FindingsOut(BaseModel):
     scan_id: uuid.UUID
     matched_at: datetime | None = Field(
         description="When findings were last computed for this scan; null: not yet"
     )
-    counts: dict[Severity, int] = Field(description="Findings per severity, before filtering")
+    counts: "SeverityCounts" = Field(description="Findings per severity, before filtering")
     findings: list[FindingSummary]
 
 

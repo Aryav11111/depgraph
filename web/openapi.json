@@ -402,21 +402,8 @@
       "FindingsOut": {
         "properties": {
           "counts": {
-            "additionalProperties": {
-              "type": "integer"
-            },
-            "description": "Findings per severity, before filtering",
-            "propertyNames": {
-              "enum": [
-                "CRITICAL",
-                "HIGH",
-                "MODERATE",
-                "LOW",
-                "UNKNOWN"
-              ]
-            },
-            "title": "Counts",
-            "type": "object"
+            "$ref": "#/components/schemas/SeverityCounts",
+            "description": "Findings per severity, before filtering"
           },
           "findings": {
             "items": {
@@ -957,6 +944,38 @@
           "completed_at"
         ],
         "title": "ScanOut",
+        "type": "object"
+      },
+      "SeverityCounts": {
+        "description": "Every severity is always present (0 if none), so clients needn't guess keys.\n\nAn explicit model rather than dict[Severity, int]: a dict renders in OpenAPI\nas an open string->int map, which typed clients can't rely on.",
+        "properties": {
+          "CRITICAL": {
+            "default": 0,
+            "title": "Critical",
+            "type": "integer"
+          },
+          "HIGH": {
+            "default": 0,
+            "title": "High",
+            "type": "integer"
+          },
+          "LOW": {
+            "default": 0,
+            "title": "Low",
+            "type": "integer"
+          },
+          "MODERATE": {
+            "default": 0,
+            "title": "Moderate",
+            "type": "integer"
+          },
+          "UNKNOWN": {
+            "default": 0,
+            "title": "Unknown",
+            "type": "integer"
+          }
+        },
+        "title": "SeverityCounts",
         "type": "object"
       },
       "ValidationError": {
