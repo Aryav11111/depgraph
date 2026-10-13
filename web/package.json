@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "gen:api": "openapi-typescript openapi.json -o src/lib/api/schema.d.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "next typegen && tsc --noEmit"
   },
   "dependencies": {
     "next": "16.4.0",

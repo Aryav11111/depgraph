@@ -1043,3 +1043,10 @@ npm 11 no longer runs dependency install scripts unless approved
 speed-up for ESLint's import resolver; lint works without it. I left it
 unapproved rather than approving scripts blindly, which is the supply-chain
 hygiene this project is about.
+
+### Fix: clean-checkout typecheck
+The first CI run failed `tsc` with `Cannot find name 'LayoutProps'`. Next 16's route type helpers
+(`LayoutProps`, `PageProps`) are generated into `.next/types` by `next typegen`. They existed
+locally only because a build had already run. `typecheck` is now `next typegen && tsc
+--noEmit`. It was reproduced locally from a clean `.next` before fixing: green locally is
+not the same as green from a fresh checkout.
