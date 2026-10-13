@@ -2,7 +2,8 @@
 
 /health       -> the process is up (liveness). Never touches dependencies, so a
                  database blip doesn't get a healthy container killed and restarted.
-/health/ready -> the process can serve traffic (readiness): Postgres and Redis respond.
+/health/ready -> the process can serve traffic (readiness): Postgres responds, and so
+                 does Redis if one is configured ("disabled" otherwise; not a failure).
 """
 
 import asyncio
@@ -35,14 +36,17 @@ async def ready(session: SessionDep, redis: RedisDep, response: Response) -> dic
         log.warning("readiness_check_failed", dependency="postgres", error=repr(exc))
         checks["postgres"] = "error"
 
-    try:
-        await asyncio.wait_for(redis.ping(), CHECK_TIMEOUT_S)
-        checks["redis"] = "ok"
-    except Exception as exc:
-        log.warning("readiness_check_failed", dependency="redis", error=repr(exc))
-        checks["redis"] = "error"
+    if redis is None:
+        checks["redis"] = "disabled"
+    else:
+        try:
+            await asyncio.wait_for(redis.ping(), CHECK_TIMEOUT_S)
+            checks["redis"] = "ok"
+        except Exception as exc:
+            log.warning("readiness_check_failed", dependency="redis", error=repr(exc))
+            checks["redis"] = "error"
 
-    healthy = all(v == "ok" for v in checks.values())
+    healthy = "error" not in checks.values()
     if not healthy:
         response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
     return {"status": "ok" if healthy else "degraded", "checks": checks}

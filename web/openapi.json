@@ -1118,6 +1118,9 @@
           },
           "422": {
             "description": "Bad lockfile"
+          },
+          "429": {
+            "description": "Upload rate limit hit; see Retry-After"
           }
         },
         "summary": "Create Scan",

@@ -1,8 +1,9 @@
 """Command line entry point for advisory jobs.
 
     python -m depgraph.advisories.cli full [--archive PATH]   # full load
-    python -m depgraph.advisories.cli sync                    # one incremental sync
-    python -m depgraph.advisories.cli worker                  # sync every interval
+    python -m depgraph.advisories.cli sync                    # one incremental sync, then prune
+    python -m depgraph.advisories.cli prune                   # scan retention only
+    python -m depgraph.advisories.cli worker                  # sync + prune every interval
 
 `sync` is the shape for a scheduled job (Cloud Run Job + Cloud Scheduler);
 `worker` is the long-running loop used by the docker-compose `worker` service.
@@ -22,6 +23,7 @@ from depgraph.core.config import get_settings
 from depgraph.core.logging import configure_logging
 from depgraph.db.session import create_engine, create_sessionmaker
 from depgraph.findings.matching import rematch_pending
+from depgraph.maintenance import prune
 
 
 async def _run(command: str, archive: Path | None) -> None:
@@ -41,6 +43,9 @@ async def _run(command: str, archive: Path | None) -> None:
                 await rematch_pending(create_sessionmaker(engine))
             elif command == "sync":
                 await sync(engine, http, settings)
+                await prune(create_sessionmaker(engine), settings)
+            elif command == "prune":
+                await prune(create_sessionmaker(engine), settings)
             else:
                 stop = asyncio.Event()
                 install_stop_handlers(stop)
@@ -54,7 +59,8 @@ def main(argv: list[str] | None = None) -> None:
     sub = parser.add_subparsers(dest="command", required=True)
     full = sub.add_parser("full", help="download and ingest the full OSV export")
     full.add_argument("--archive", type=Path, help="ingest a local all.zip instead")
-    sub.add_parser("sync", help="run one incremental sync (full load if no cursor)")
+    sub.add_parser("sync", help="one incremental sync (full load if no cursor), then prune")
+    sub.add_parser("prune", help="delete scans past SCAN_RETENTION_DAYS, stale rate counters")
     sub.add_parser("rematch", help="push un-rematched sync runs into scan findings")
     sub.add_parser("worker", help="sync every OSV_SYNC_INTERVAL_S until stopped")
     args = parser.parse_args(argv)

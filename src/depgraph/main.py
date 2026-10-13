@@ -30,16 +30,21 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         # instance teardown doesn't leave dangling Postgres connections.
         engine = create_engine(settings)
         app.state.sessionmaker = create_sessionmaker(engine)
-        # Bytes in/out: the registry cache stores compressed payloads.
-        app.state.redis = Redis.from_url(settings.redis_url.get_secret_value())
+        # Optional cache (bytes in/out: it stores compressed payloads). None when
+        # REDIS_URL is empty, as in the Redis-less production deploy.
+        app.state.redis = (
+            Redis.from_url(settings.redis_url.get_secret_value()) if settings.redis_url else None
+        )
         # Shared npm client: one connection pool + single-flight table per process.
         app.state.npm = NpmRegistryClient.from_settings(settings, app.state.redis)
-        log.info("startup", env=settings.app_env, version=__version__)
+        log.info("startup", env=settings.app_env, version=__version__,
+                 redis=app.state.redis is not None)  # fmt: skip
         try:
             yield
         finally:
             await app.state.npm.aclose()
-            await app.state.redis.aclose()
+            if app.state.redis is not None:
+                await app.state.redis.aclose()
             await engine.dispose()
             log.info("shutdown")
 
@@ -52,9 +57,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins,
+        allow_origin_regex=settings.cors_origin_regex,
         allow_methods=["GET", "POST"],
         allow_headers=["Content-Type", "X-Request-ID"],
-        expose_headers=["X-Request-ID", "Location"],
+        expose_headers=["X-Request-ID", "Location", "Retry-After"],
         allow_credentials=False,
         max_age=600,
     )

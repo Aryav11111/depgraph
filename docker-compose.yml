@@ -40,6 +40,10 @@ services:
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-depgraph}:${POSTGRES_PASSWORD:-depgraph}@postgres:5432/${POSTGRES_DB:-depgraph}
       REDIS_URL: redis://redis:6379/0
+      # Off locally (the E2E suite uploads many lockfiles from one address);
+      # production sets real limits. Tests cover the limiter directly.
+      UPLOAD_LIMIT_PER_IP: ${UPLOAD_LIMIT_PER_IP:-0}
+      UPLOAD_LIMIT_GLOBAL: ${UPLOAD_LIMIT_GLOBAL:-0}
     depends_on:
       postgres:
         condition: service_healthy

@@ -16,12 +16,12 @@ async def get_session(request: Request) -> AsyncIterator[AsyncSession]:
         yield session
 
 
-def get_redis(request: Request) -> Redis:
+def get_redis(request: Request) -> Redis | None:
     return request.app.state.redis
 
 
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
-RedisDep = Annotated[Redis, Depends(get_redis)]
+RedisDep = Annotated[Redis | None, Depends(get_redis)]
 
 
 def get_npm(request: Request) -> NpmRegistryClient:

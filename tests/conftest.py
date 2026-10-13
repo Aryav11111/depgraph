@@ -33,6 +33,9 @@ _url = make_url(Settings().database_url.get_secret_value())
 if not (_url.database or "").endswith("_test"):
     _url = _url.set(database=f"{_url.database}_test")
 os.environ["DATABASE_URL"] = _url.render_as_string(hide_password=False)
+# Suites upload many lockfiles from one address; rate-limit tests opt back in.
+os.environ["UPLOAD_LIMIT_PER_IP"] = "0"
+os.environ["UPLOAD_LIMIT_GLOBAL"] = "0"
 TEST_DATABASE_URL = _url
 
 

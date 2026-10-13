@@ -32,7 +32,8 @@ export function messageForStatus(status: number, body: unknown): string {
     case 422:
       return detail ? `The server couldn't read that lockfile: ${detail}` : "The server couldn't read that lockfile.";
     case 429:
-      return "Too many uploads from your network. Wait a minute and try again.";
+      // The API's message says which limit and when it resets ("Try again in 7 minutes").
+      return detail ?? "Too many uploads from your network. Wait a few minutes and try again.";
     case 404:
       return detail ?? "Not found.";
     case 409:

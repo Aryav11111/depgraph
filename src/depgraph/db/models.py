@@ -89,7 +89,9 @@ class Scan(Base):
     # Non-fatal findings from parsing/building (unresolved deps, integrity
     # mismatches): a scan of a slightly inconsistent lockfile still completes.
     warnings: Mapped[list[dict]] = mapped_column(JSONB, server_default=text("'[]'::jsonb"))
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), index=True
+    )
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     # When findings were last fully computed for this scan (NULL: never).
     matched_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
@@ -310,3 +312,19 @@ class Finding(Base):
     advisory_id: Mapped[str] = mapped_column(ForeignKey("advisories.id", ondelete="CASCADE"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class RateLimitBucket(Base):
+    """One fixed-window counter: `hits` requests under `key` in the window
+    starting at `window_start`. See depgraph.api.ratelimit.
+
+    UNLOGGED: counters are disposable, so they skip the write-ahead log (cheaper
+    writes; a Postgres crash empties the table, which merely resets limits).
+    """
+
+    __tablename__ = "rate_limit_buckets"
+    __table_args__ = ({"prefixes": ["UNLOGGED"]},)
+
+    key: Mapped[str] = mapped_column(Text, primary_key=True)
+    window_start: Mapped[datetime] = mapped_column(DateTime(timezone=True), primary_key=True)
+    hits: Mapped[int] = mapped_column(Integer)

@@ -646,6 +646,13 @@ export interface operations {
                 };
                 content?: never;
             };
+            /** @description Upload rate limit hit; see Retry-After */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
     get_scan_scans__scan_id__get: {

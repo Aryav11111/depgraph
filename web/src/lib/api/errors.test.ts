@@ -17,6 +17,7 @@ describe("messageForStatus", () => {
     [413, {}, "larger than the server accepts"],
     [422, { detail: "unsupported lockfileVersion 1" }, "unsupported lockfileVersion 1"],
     [429, {}, "Too many uploads"],
+    [429, { detail: "Too many uploads from your address. Try again in 7 minutes." }, "7 minutes"],
     [404, { detail: "scan not found" }, "scan not found"],
     [409, { detail: "scan is failed; its graph is not available" }, "scan is failed"],
     [500, { detail: "Traceback (most recent call last)" }, "server hit an error"],

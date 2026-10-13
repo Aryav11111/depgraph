@@ -25,7 +25,7 @@ target_metadata = Base.metadata
 def run_migrations_offline() -> None:
     """Emit SQL to stdout instead of executing it (`alembic upgrade head --sql`)."""
     context.configure(
-        url=settings.database_url.get_secret_value(),
+        url=settings.sqlalchemy_url(),
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
@@ -43,7 +43,7 @@ def do_run_migrations(connection: Connection) -> None:
 
 async def run_migrations_online() -> None:
     # NullPool: a one-shot CLI process has no use for a connection pool.
-    engine = create_async_engine(settings.database_url.get_secret_value(), poolclass=pool.NullPool)
+    engine = create_async_engine(settings.sqlalchemy_url(), poolclass=pool.NullPool)
     async with engine.connect() as connection:
         await connection.run_sync(do_run_migrations)
     await engine.dispose()

@@ -44,6 +44,7 @@ from depgraph.core.config import Settings
 from depgraph.db.models import AdvisorySyncRun
 from depgraph.db.session import create_sessionmaker
 from depgraph.findings.matching import rematch_pending
+from depgraph.maintenance import prune
 
 log = structlog.get_logger(__name__)
 
@@ -200,7 +201,7 @@ async def _fetch_records(
 
 async def run_worker(engine: AsyncEngine, http: httpx.AsyncClient, settings: Settings,
                      stop: asyncio.Event) -> None:  # fmt: skip
-    """Sync, then sleep `osv_sync_interval_s`, until `stop` is set.
+    """Sync and prune, then sleep `osv_sync_interval_s`, until `stop` is set.
 
     A failed sync is logged and retried next interval; it never kills the
     worker. Stopping takes effect between syncs (or immediately while sleeping),
@@ -212,6 +213,10 @@ async def run_worker(engine: AsyncEngine, http: httpx.AsyncClient, settings: Set
             await sync(engine, http, settings)
         except Exception:
             log.exception("advisory_worker_sync_error")
+        try:
+            await prune(create_sessionmaker(engine), settings)
+        except Exception:
+            log.exception("prune_error")
         with suppress(TimeoutError):
             await asyncio.wait_for(stop.wait(), timeout=settings.osv_sync_interval_s)
     log.info("advisory_worker_stopped")

@@ -8,6 +8,7 @@ from typing import Annotated
 import structlog
 from fastapi import APIRouter, HTTPException, Query, Request, Response, status
 
+from depgraph.api import ratelimit
 from depgraph.api.deps import SessionDep
 from depgraph.api.schemas import EdgeOut, GraphOut, NodeOut, PathsOut, PathStep, ScanOut
 from depgraph.db.models import Scan
@@ -51,11 +52,22 @@ def _too_large(limit: int) -> HTTPException:
     status_code=status.HTTP_201_CREATED,
     response_model=ScanOut,
     openapi_extra=_LOCKFILE_BODY,
-    responses={413: {"description": "Lockfile too large"}, 422: {"description": "Bad lockfile"}},
+    responses={
+        413: {"description": "Lockfile too large"},
+        422: {"description": "Bad lockfile"},
+        429: {"description": "Upload rate limit hit; see Retry-After"},
+    },
 )
 async def create_scan(request: Request, response: Response, session: SessionDep) -> Scan:
     """Upload a package-lock.json; it is parsed, resolved and stored synchronously."""
     settings = request.app.state.settings
+    maker = request.app.state.sessionmaker
+    # Rate limit before reading the body: a refused client costs one upsert,
+    # not a 5 MB upload and a parse.
+    ip = ratelimit.client_ip(request, settings.client_ip_proxy_hops)
+    async with maker.begin() as s:
+        await ratelimit.enforce(s, ratelimit.upload_limits(settings, ip))
+
     body = await _read_body(request, settings.max_lockfile_bytes)
     if not body.strip():
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "empty request body")
@@ -67,7 +79,6 @@ async def create_scan(request: Request, response: Response, session: SessionDep)
     except LockfileError as exc:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(exc)) from exc
 
-    maker = request.app.state.sessionmaker
     async with maker.begin() as s:
         scan = Scan(lockfile_sha256=hashlib.sha256(body).hexdigest())
         s.add(scan)

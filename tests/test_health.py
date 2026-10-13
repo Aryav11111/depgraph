@@ -54,3 +54,20 @@ async def test_cors_rejects_other_origins(client):
 def test_cors_origins_from_json_list_env(monkeypatch):
     monkeypatch.setenv("CORS_ORIGINS", '["https://a.example","https://b.example"]')
     assert Settings(_env_file=None).cors_origins == ["https://a.example", "https://b.example"]
+
+
+async def test_readiness_without_redis_reports_it_disabled(settings: Settings):
+    # The production demo runs without Redis: that's not a failure.
+    async with make_client(settings.model_copy(update={"redis_url": None})) as c:
+        resp = await c.get("/health/ready")
+    assert resp.status_code == 200
+    assert resp.json() == {"status": "ok", "checks": {"postgres": "ok", "redis": "disabled"}}
+
+
+async def test_cors_origin_regex_admits_preview_deploys(settings: Settings):
+    regex = r"^https://depgraph-[a-z0-9-]+-team\.vercel\.app$"
+    async with make_client(settings.model_copy(update={"cors_origin_regex": regex})) as c:
+        ok = await c.get("/health", headers={"Origin": "https://depgraph-git-x-team.vercel.app"})
+        bad = await c.get("/health", headers={"Origin": "https://depgraph-x-evil.vercel.app"})
+    assert ok.headers["access-control-allow-origin"] == "https://depgraph-git-x-team.vercel.app"
+    assert "access-control-allow-origin" not in bad.headers

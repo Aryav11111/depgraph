@@ -55,7 +55,9 @@ are planned later layers on top of it.
 | Finding detail: advisory, all paths, fix | ✅ |
 | Interactive dependency graph (React Flow) | ✅ |
 | Loading / empty / error states, mobile, E2E + accessibility in CI | ✅ |
-| Deploy: Cloud Run + Vercel, rate limiting | ⏳ next |
+| Production readiness: rate limiting, retention, optional Redis, deploy scripts | ✅ |
+| Deploy: Cloud Run + VM Postgres + Vercel | ⏳ next (needs a GCP project) |
+| CI deploy on merge, live demo link | planned |
 | Deploy on merge, live demo link + screenshot | planned |
 
 ## Architecture
@@ -253,11 +255,13 @@ src/depgraph/
   graph/           collapse install paths to identities; bulk persist + scan lifecycle
   advisories/      OSV normalization, CVSS v3 scoring, ingestion, semver + range matcher
   findings/        match scans against advisories; re-match after each sync
+  maintenance.py   scan retention + stale rate-limit counters (runs after each sync)
 migrations/        Alembic (async), URL taken from settings
 web/               Next.js (App Router) + TypeScript + Tailwind frontend
   openapi.json     API schema snapshot (generated: make openapi)
   src/lib/api/     typed client: schema.d.ts generated from openapi.json
 scripts/           OpenAPI export, fixture refresh, make help
+infra/             GCP deploy: idempotent gcloud scripts, VM startup, backup job (see infra/README.md)
 tests/             pytest (+ Hypothesis), in-process ASGI client against real services
   fixtures/        real npm lockfiles + npm audit snapshots, real OSV records (see its README)
 ```

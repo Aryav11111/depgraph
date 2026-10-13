@@ -22,6 +22,8 @@ jobs:
       - run: uv run ruff format --check .
       - name: OpenAPI schema committed for the web app is current
         run: uv run python scripts/export_openapi.py --check
+      - name: Deploy scripts pass shellcheck
+        run: shellcheck -x infra/gcp/*.sh infra/gcp/backup/*.sh
 
   test:
     runs-on: ubuntu-24.04
@@ -132,3 +134,8 @@ jobs:
           push: false
           cache-from: type=gha
           cache-to: type=gha,mode=max
+      - name: Backup job image builds
+        uses: docker/build-push-action@v7
+        with:
+          context: infra/gcp/backup
+          push: false
